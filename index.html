@@ -1,0 +1,233 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+    <script src="../three.js/build/three.js"></script>
+	<script src="../three.js/examples/js/Detector.js"></script>
+	<script src="../three.js/examples/js/libs/stats.min.js"></script>
+	<script src="../three.js/examples/js/controls/OrbitControls.js"></script>	
+	<script src="../three.js/examples/js/loaders/OBJLoader.js"></script>
+	<script src='../three.js/examples/js/libs/dat.gui.min.js'></script>
+	<script src="js/particles_general/TrailRenderer.js"></script>
+    <style>
+		body {
+			font-family: Monospace;
+			background-color: #000;
+			color: #fff;
+			margin: 0px;
+			overflow: hidden;
+		}
+		#info {
+			position: absolute;
+			top: 10px;
+			width: 100%;
+			text-align: center;
+			z-index: 50;
+			display:block;
+		}
+		#info a { color: #f00; font-weight: bold; text-decoration: underline; cursor: pointer }
+	</style>
+    <title>Three.js Particle System</title>
+</head>
+<body>
+
+<div id="info">
+	<a href="http://threejs.org" target="_blank">three.js</a> - Trail Renderer by <a href="https://github.com/mkkellogg">mkkellogg</a>
+</div>
+
+<div id="renderingContainer" style="position: absolute; left:0px; top:0px"></div>
+
+<script>
+
+	window.addEventListener( "load", function load( event ) {
+
+		window.removeEventListener( "load", load, false );
+		init();
+
+	}, false );
+
+
+	function init() {
+
+		clock = new THREE.Clock();
+		getScreenDimensions();
+
+		initScene();
+		initGUI();
+		initListeners();
+
+		initLights();
+
+		initSceneGeometry( function() {
+
+			initRenderer();
+			initControls();
+			initStats();
+			animate();
+
+		} );
+
+	}
+
+	function initGUI() {
+
+		gui = new dat.GUI();
+		parameters =
+			{
+				smoke: function() {
+
+					smokeActive = ! smokeActive; updateSmokeType();
+
+				},
+				smokeType: null,
+				embers: function() {
+
+					toggleParticleSystem( ParticleSystemIDs.FlameEmbers );
+
+				},
+				flame: function() {
+
+					toggleParticleSystem( ParticleSystemIDs.Flame );
+
+				},
+			};
+
+		gui.add( parameters, 'smokeType', { Basic: ParticleSystemIDs.Smoke1, Animated: ParticleSystemIDs.Smoke2 } ).name( "Smoke type" ).onChange( function() {
+
+				smokeType = parameters.smokeType;
+				updateSmokeType();
+
+			} );
+		
+		gui.add( parameters, 'smoke' ).name( "Toggle smoke" );
+		gui.add( parameters, 'embers' ).name( "Toggle embers" );
+		gui.add( parameters, 'flame' ).name( "Toggle flame" );
+		gui.open();
+
+		gui.domElement.parentNode.style.zIndex = 100;
+
+	}
+
+	function initListeners() {
+
+		window.addEventListener( 'resize', onWindowResize, false );
+
+	    }
+
+	function initRenderer() {
+
+		renderer = new THREE.WebGLRenderer();
+		renderer.setSize( screenWidth, screenHeight );
+		renderer.setClearColor( 0x000000 );
+		renderer.shadowMap.enabled = true;
+		renderer.shadowMap.type = THREE.BasicShadowMap;
+		rendererContainer = document.getElementById( 'renderingContainer' );
+		rendererContainer.appendChild( renderer.domElement );
+
+	}
+
+	function initLights() {
+
+		ambientLight = new THREE.AmbientLight( 0x101010 );
+		scene.add( ambientLight );
+
+		pointLight = new THREE.PointLight( 0xffffff, 2, 1000, 1 );
+		pointLight.position.set( 0, 40, 0 );
+		pointLight.castShadow = true;
+		pointLight.shadowCameraNear = 1;
+		pointLight.shadowCameraFar = 1000;
+		pointLight.shadowDarkness = .8;
+		// pointLight.shadowCameraVisible = true;
+		pointLight.shadowMapWidth = 4096;
+		pointLight.shadowMapHeight = 2048;
+		pointLight.shadowBias = - 0.5;
+		scene.add( pointLight );
+
+	}
+
+	function initSceneGeometry( onFinished ) {
+
+		onFinished();
+
+	}
+
+	function initScene() {
+
+		scene = new THREE.Scene();
+
+		camera = new THREE.PerspectiveCamera( 45, 1.0, 2, 2000 );
+		scene.add( camera );
+		resetCamera();
+
+	}
+
+	function initStats() {
+
+		stats = new Stats();
+		stats.domElement.style.position = 'absolute';
+		stats.domElement.style.bottom = '0px';
+		stats.domElement.style.zIndex = 100;
+		rendererContainer.appendChild( stats.domElement );
+
+	}
+
+	function initControls() {
+
+		controls = new THREE.OrbitControls( camera, renderer.domElement );
+		controls.target.set( 0, 0, 0 );
+		controls.update();
+
+	    }
+
+	function onWindowResize() {
+
+		getScreenDimensions();
+		renderer.setSize( screenWidth, screenHeight );
+		resetCamera();
+
+	}
+
+	function getScreenDimensions() {
+
+		screenWidth = window.innerWidth;
+		screenHeight = window.innerHeight;
+
+	}
+
+	function resetCamera() {
+
+		getScreenDimensions();
+		camera.aspect = screenWidth / screenHeight;
+		camera.updateProjectionMatrix();
+		camera.position.set( 0, 200, 400 );
+		camera.lookAt( scene.position );
+
+	}
+
+	function animate() {
+
+		requestAnimationFrame( animate );
+		update();
+		render();
+
+	}
+
+	function update() {
+
+		var time = performance.now() * 0.001;
+
+		controls.update();
+		stats.update();
+
+	}
+
+	function render() {
+
+		renderer.render( scene, camera );
+
+	}
+
+</script>
+</body>
+</html>
