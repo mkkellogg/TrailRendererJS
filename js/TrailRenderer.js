@@ -15,7 +15,7 @@ THREE.TrailRenderer.Renderer = function( length, scene, material, localHeadWidth
 	this.localHeadWidth = localHeadWidth;
 	this.localHeadGeometry = localHeadGeometry;
 	this.targetObject = targetObject;
-	this.length = length;
+	this.length = ( length > 0 ) ? length + 1 : 0;
 	this.scene = scene;
 	this.material = material;
 
@@ -23,8 +23,10 @@ THREE.TrailRenderer.Renderer = function( length, scene, material, localHeadWidth
 	this.mesh = null;
 	this.nodeCenters = null;
 	this.nodeIDs = null;
+
 	this.lastPosition = null;
 	this.currentLength = 0;
+	this.currentEnd = 0;
 
 }
 
@@ -130,7 +132,7 @@ THREE.TrailRenderer.Renderer.prototype.initialize = function() {
 
 }
 
-THREE.Particles.ParticleSystem.prototype.initializeGeometry = function() {
+/*THREE.Particles.ParticleSystem.prototype.initializeGeometry = function() {
 
 	this.vertexCount = this.length * 6;
 
@@ -159,6 +161,51 @@ THREE.Particles.ParticleSystem.prototype.initializeGeometry = function() {
 
 	this.geometry = geometry;
 
+}*/
+
+THREE.Particles.ParticleSystem.prototype.initializeGeometry = function() {
+
+	var geometry = new THREE.Geometry();
+
+	for ( var i = 0; i < this.length; i ++ ) {
+
+		// connecting vertices for node i
+		geometry.vertices.push(
+			new THREE.Vector3( 0, 0, 0 ),
+			new THREE.Vector3( 0, 0, 0 )
+		);
+
+	}
+
+	this.geometry = geometry;
+
+	this.formInitialFaces();
+	this.zeroVertices();
+
+}
+
+THREE.TrailRenderer.Renderer.prototype.zeroVertices = function( ) {
+
+	for ( var i = 0; i < this.geometry.vertices.length; i ++ ) {
+
+		var vertex = this.geometry.vertices[ i ];
+		vertex.set( 0, 0, 0 );
+	}
+
+}
+
+THREE.TrailRenderer.Renderer.prototype.formInitialFaces = function() {
+
+	this.geometry.faces = [];
+
+	for ( var i = 1; i < this.length; i ++ ) {
+
+		var verticesAdded = ( i * 2 ) + 2;
+
+		this.geometry.faces.push( new THREE.Face3( verticesAdded - 2, verticesAdded, verticesAdded - 1 ) );
+		this.geometry.faces.push( new THREE.Face3( verticesAdded, verticesAdded + 1, verticesAdded - 1 ) );
+	}
+
 }
 
 THREE.TrailRenderer.Renderer.prototype.initializeMesh = function() {
@@ -173,33 +220,62 @@ THREE.TrailRenderer.Renderer.prototype.initializeMesh = function() {
 
 THREE.TrailRenderer.Renderer.prototype.destroyMesh = function() {
 
-	if ( this.trailMesh ) {
+	if ( this.mesh ) {
 
-		this.scene.remove( this.trailMesh );
+		this.scene.remove( this.mesh );
 		this.trailMesh = null;
 
 	}
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.reset = function( position ) {
+THREE.TrailRenderer.Renderer.prototype.reset = function() {
 
 	this.currentLength = 0;
+	this.currentEnd = 0;
 	this.lastPosition = null;
-	this.updateGeometry( position );
+
+	this.formInitialFaces();
+	this.zeroVertices();
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.update = function( position ) {
+THREE.TrailRenderer.Renderer.prototype.advance = function( nextPosition ) {
 
-	this.updateGeometry( position );
+	this.advanceGeometry( nextPosition );
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.updateGeometry = function( position ){ 
+THREE.TrailRenderer.Renderer.prototype.advanceGeometry = function( nextPosition ){ 
+
+	if( this.currentLength < this.length ) {
 
 
 
+		this.currentLength ++;
+
+	}
+
+}
+
+THREE.TrailRenderer.Renderer.prototype.connectNodes = function( srcNode, destNode ) {
+
+	var srcNodeIndex = srcNode * 2;
+	var destNodeIndex = destNode * 2;
+
+	var faceIndex1 = srcNode * 2;
+	var faceIndex2 = srcNode * 2 + 1;
+
+	var face1 = this.geometry.faces[ faceIndex1 ];
+	var face2 = this.geometry.faces[ faceIndex2 ];
+
+	face1.a = srcNodeIndex;
+	face1.b = destNodeIndex;
+	face1.c = srcNodeIndex + 1;
+
+	face2.a = destNodeIndex;
+	face2.b = destNodeIndex + 1;
+	face2.c = srcNodeIndex + 1;
 
 }
 
