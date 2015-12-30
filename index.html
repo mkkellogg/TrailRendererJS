@@ -9,7 +9,7 @@
 	<script src="../three.js/examples/js/controls/OrbitControls.js"></script>	
 	<script src="../three.js/examples/js/loaders/OBJLoader.js"></script>
 	<script src='../three.js/examples/js/libs/dat.gui.min.js'></script>
-	<script src="js/particles_general/TrailRenderer.js"></script>
+	<script src="js/TrailRenderer.js"></script>
     <style>
 		body {
 			font-family: Monospace;
@@ -40,6 +40,12 @@
 
 <script>
 
+	var ball;
+	var scene, gui, renderer, clock;
+	var camera, pointLight, ambientLight, controls, stats;
+	var options;
+	var ballTrail, lastTrailUpdateTime;
+
 	window.addEventListener( "load", function load( event ) {
 
 		window.removeEventListener( "load", load, false );
@@ -51,6 +57,8 @@
 	function init() {
 
 		clock = new THREE.Clock();
+		lastTrailUpdateTime = performance.now();
+
 		getScreenDimensions();
 
 		initScene();
@@ -61,6 +69,7 @@
 
 		initSceneGeometry( function() {
 
+			initTrailRenderers();
 			initRenderer();
 			initControls();
 			initStats();
@@ -73,37 +82,27 @@
 	function initGUI() {
 
 		gui = new dat.GUI();
-		parameters =
-			{
-				smoke: function() {
+		      // options passed during each spawned
+	    options = {
+			position: new THREE.Vector3(),
+			positionRandomness: .3,
+			velocity: new THREE.Vector3(),
+			velocityRandomness: .5,
+			color: 0xaa88ff,
+			colorRandomness: .2,
+			turbulence: .5,
+			lifetime: 2,
+			size: 5,
+			sizeRandomness: 1
+	    };
 
-					smokeActive = ! smokeActive; updateSmokeType();
-
-				},
-				smokeType: null,
-				embers: function() {
-
-					toggleParticleSystem( ParticleSystemIDs.FlameEmbers );
-
-				},
-				flame: function() {
-
-					toggleParticleSystem( ParticleSystemIDs.Flame );
-
-				},
-			};
-
-		gui.add( parameters, 'smokeType', { Basic: ParticleSystemIDs.Smoke1, Animated: ParticleSystemIDs.Smoke2 } ).name( "Smoke type" ).onChange( function() {
-
-				smokeType = parameters.smokeType;
-				updateSmokeType();
-
-			} );
-		
-		gui.add( parameters, 'smoke' ).name( "Toggle smoke" );
-		gui.add( parameters, 'embers' ).name( "Toggle embers" );
-		gui.add( parameters, 'flame' ).name( "Toggle flame" );
-		gui.open();
+		gui.add(options, "velocityRandomness", 0, 3);
+		gui.add(options, "positionRandomness", 0, 3);
+		gui.add(options, "size", 1, 20);
+		gui.add(options, "sizeRandomness", 0, 25);
+		gui.add(options, "colorRandomness", 0, 1);
+		gui.add(options, "lifetime", .1, 10);
+		gui.add(options, "turbulence", 0, 1);
 
 		gui.domElement.parentNode.style.zIndex = 100;
 
@@ -129,7 +128,7 @@
 
 	function initLights() {
 
-		ambientLight = new THREE.AmbientLight( 0x101010 );
+		ambientLight = new THREE.AmbientLight( 0x777777 );
 		scene.add( ambientLight );
 
 		pointLight = new THREE.PointLight( 0xffffff, 2, 1000, 1 );
@@ -148,8 +147,41 @@
 
 	function initSceneGeometry( onFinished ) {
 
+		var ballMaterial = new THREE.MeshPhongMaterial( {
+			color: 0xa0adaf,
+			shininess: 10,
+			specular: 0x111111,
+			shading: THREE.SmoothShading
+		} );
+
+		var ballGeometry = new THREE.SphereGeometry( 10, 32, 32 );
+		ball = new THREE.Mesh( ballGeometry, ballMaterial );
+		ball.position.set( 0, 0, 0 );
+		ball.scale.multiplyScalar( 1 );
+		ball.receiveShadow = false;
+		scene.add( ball );
+
 		onFinished();
 
+	}
+
+	function initTrailRenderers() {
+
+		var localHeadGeometry = [ new THREE.Vector3( -10, 0, 0 ), new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 10, 0, 0 ) ];
+
+		var trailMaterial = THREE.TrailRenderer.Renderer.createMaterial( 
+			THREE.TrailRenderer.Renderer.Shader.VertexShader, 
+			THREE.TrailRenderer.Renderer.Shader.FragmentShader, 
+			{}
+		);
+
+		ballTrail = new THREE.TrailRenderer.Renderer( 100, scene, trailMaterial, 0, localHeadGeometry, ball );
+		ballTrail.initialize();
+
+		console.log( ballTrail );
+
+		ballTrail.activate();
+		
 	}
 
 	function initScene() {
@@ -205,6 +237,23 @@
 
 	}
 
+	function updateBall( time ) {
+
+		if( time - lastTrailUpdateTime > .1 ) {
+
+			ballTrail.advance();
+			lastTrailUpdateTime = time;
+
+		}
+
+		var scaledTime = time * .001;
+		var areaScale = 120;
+		ball.position.x = Math.sin( scaledTime ) * areaScale;
+		ball.position.y = Math.sin( scaledTime * 1.1 ) * areaScale;
+		ball.position.z = Math.sin( scaledTime * 1.6 ) * areaScale;
+
+	}
+
 	function animate() {
 
 		requestAnimationFrame( animate );
@@ -215,7 +264,9 @@
 
 	function update() {
 
-		var time = performance.now() * 0.001;
+		var time = performance.now();
+
+		updateBall( time );
 
 		controls.update();
 		stats.update();
