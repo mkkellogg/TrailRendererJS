@@ -167,13 +167,33 @@
 
 	function initTrailRenderers() {
 
-		var localHeadGeometry = [ new THREE.Vector3( -10, 0, 0 ), new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 10, 0, 0 ) ];
+		var localHeadGeometry = [];
+		var twoPI = Math.PI * 2;
+		var index = 0;
+		var scale = 10.0;
+		var inc = twoPI / 32.0;
+		for ( var i = 0; i <= twoPI + inc; i+= inc )  {
+
+			var vector = new THREE.Vector3();
+			vector.set( Math.cos( i ) * scale, Math.sin( i ) * scale, 0 );
+			localHeadGeometry[ index ] = vector;
+			index ++;
+
+		}
 
 		var trailMaterial = THREE.TrailRenderer.Renderer.createMaterial( 
 			THREE.TrailRenderer.Renderer.Shader.VertexShader, 
 			THREE.TrailRenderer.Renderer.Shader.FragmentShader, 
 			{}
 		);
+
+		trailMaterial.blending = THREE.CustomBlending;
+		trailMaterial.blendSrc = THREE.SrcAlphaFactor;
+		trailMaterial.blendDst = THREE.OneMinusSrcAlphaFactor;
+		trailMaterial.blendEquation = THREE.AddEquation;
+
+		trailMaterial.uniforms.headColor.value.set( 1.0, 0.0, 0.0, 1.0 );
+		trailMaterial.uniforms.tailColor.value.set( 1.0, 1.0, 0.0, 0.0 );
 
 		ballTrail = new THREE.TrailRenderer.Renderer( 100, scene, trailMaterial, 0, localHeadGeometry, ball );
 		ballTrail.initialize();

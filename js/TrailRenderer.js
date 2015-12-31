@@ -126,7 +126,7 @@ THREE.TrailRenderer.Renderer.Shader.FragmentShader = [
 
 	    "vec4 textureColor = texture2D( texture, vUV );",
 		//"gl_FragColor = vColor * textureColor;",
-		"gl_FragColor = vec4( 1.0, 0.0, 0.0, 1.0 );",
+		"gl_FragColor = vColor;",
 
 	"}"
 
@@ -182,10 +182,6 @@ THREE.TrailRenderer.Renderer.prototype.initialize = function() {
 	this.material.uniforms.trailLength.value = this.length;
 	this.material.uniforms.minID.value = 0;
 	this.material.uniforms.maxID.value = 0;
-
-	this.material.uniforms.headColor.value.set( 1.0, 1.0, 1.0, 1.0 );
-	this.material.uniforms.tailColor.value.set( 1.0, 1.0, 1.0, 1.0 );
-
 
 	this.reset( new THREE.Vector3() );
 
@@ -323,20 +319,19 @@ THREE.TrailRenderer.Renderer.prototype.advance = function() {
 
 	return function advance() {
 
-		orientationTangent.copy( THREE.TrailRenderer.LocalOrientationTangent );
-		position.copy( THREE.TrailRenderer.LocalHeadOrigin );
-
 		this.targetObject.updateMatrixWorld();
 		tempMatrix4.copy( this.targetObject.matrixWorld );
 
+		/*orientationTangent.copy( THREE.TrailRenderer.LocalOrientationTangent );
+		position.copy( THREE.TrailRenderer.LocalHeadOrigin );
 		offset.setFromMatrixPosition( tempMatrix4 );
 		position.add( offset );
-
 		orientationTangent.applyMatrix4( tempMatrix4 );
-		orientationTangent.normalize();		
+		orientationTangent.normalize();
+		this.advanceWithPositionAndOrientation( position, orientationTangent );*/
 
-		this.advanceGeometry( position, orientationTangent );
-
+		this.advanceWithTransform( tempMatrix4 );
+		
 		this.updateUniforms();
 	}
 
@@ -351,30 +346,36 @@ THREE.TrailRenderer.Renderer.prototype.updateUniforms = function() {
 
 THREE.TrailRenderer.Renderer.prototype.advanceWithPositionAndOrientation = function( nextPosition, orientationTangent ) {
 
-	this.advanceGeometry( nextPosition, orientationTangent );
+	this.advanceGeometry( { position : nextPosition, tangent : orientationTangent }, null );
 
 }
+
+THREE.TrailRenderer.Renderer.prototype.advanceWithTransform = function( transformMatrix ) {
+
+	this.advanceGeometry( null, transformMatrix );
+
+}
+
 
 THREE.TrailRenderer.Renderer.prototype.advanceGeometry = function() { 
 
 	var direction = new THREE.Vector3();
-	var tempPosition1 = new THREE.Vector3();
-	var tempPosition2 = new THREE.Vector3();
+	var tempPosition = new THREE.Vector3();
 
-	return function advanceGeometry( nextPosition, orientationTangent ) {
+	return function advanceGeometry( positionAndOrientation, transformMatrix ) {
 
 		if ( this.currentLength >= 1 ) {
 
-			tempPosition1.copy( this.nodeCenters[ this.currentEnd ] );
-			tempPosition2.copy( nextPosition );
-
-			direction.copy( tempPosition2 );
-			direction.sub( tempPosition1 );
-			direction.normalize();
-
 			var nextIndex = this.currentEnd + 1 >= this.length ? 0 : this.currentEnd + 1; 
 
-			this.updateNodePositions( nextIndex, nextPosition, direction, orientationTangent );
+			if( transformMatrix ) {
+
+				this.updateNodePositionsFromTransformMatrix( nextIndex, transformMatrix );
+
+			} else {
+
+				this.updateNodePositionsFromOrientationTangent( nextIndex, positionAndOrientation.position, positionAndOrientation.tangent );
+			}
 
 			this.connectNodes( this.currentEnd , nextIndex );
 
@@ -409,12 +410,23 @@ THREE.TrailRenderer.Renderer.prototype.advanceGeometry = function() {
 			} else {
 
 				this.geometry.setDrawRange( 0, this.currentLength * this.FaceIndicesPerNode);
-				
+
 			}
 
 		}
 
-		this.updateNodeCenter( this.currentEnd, nextPosition );
+		if ( transformMatrix ) {
+
+			tempPosition.set( 0, 0, 0 );
+			tempPosition.applyMatrix4( transformMatrix );
+			this.updateNodeCenter( this.currentEnd, tempPosition );
+
+		} else {
+
+			this.updateNodeCenter( this.currentEnd, positionAndOrientation.position );
+
+		}
+		
 		this.updateNodeID( this.currentEnd,  this.currentNodeID );
 		this.currentNodeID ++;
 	}
@@ -457,7 +469,7 @@ THREE.TrailRenderer.Renderer.prototype.updateNodeCenter = function( nodeIndex, n
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.updateNodePositions = function() { 
+THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromOrientationTangent = function() { 
 
 	var tempMatrix4 = new THREE.Matrix4();
 	var tempQuaternion = new THREE.Quaternion();
@@ -471,11 +483,9 @@ THREE.TrailRenderer.Renderer.prototype.updateNodePositions = function() {
 
 	}
 
-	return function updateNodePositions( nodeIndex, nodeCenter, direction, orientationTangent  ) {
+	return function updateNodePositionsFromOrientationTangent( nodeIndex, nodeCenter, orientationTangent  ) {
 
 		var positions = this.geometry.getAttribute( 'position' );
-
-		this.updateNodeCenter( nodeIndex, nodeCenter );
 
 		tempOffset.copy( nodeCenter );
 		tempOffset.sub( THREE.TrailRenderer.LocalHeadOrigin );
@@ -487,6 +497,46 @@ THREE.TrailRenderer.Renderer.prototype.updateNodePositions = function() {
 			vertex.copy( this.localHeadGeometry[ i ] );
 			vertex.applyQuaternion( tempQuaternion );
 			vertex.add( tempOffset );
+		}
+
+		for ( var i = 0; i <  this.localHeadGeometry.length; i ++ ) {
+
+			var positionIndex = ( ( this.VerticesPerNode * nodeIndex ) + i ) * 3;
+			var transformedHeadVertex = tempLocalHeadGeometry[ i ];
+
+			positions.array[ positionIndex ] = transformedHeadVertex.x;
+			positions.array[ positionIndex + 1 ] = transformedHeadVertex.y;
+			positions.array[ positionIndex + 2 ] = transformedHeadVertex.z;
+
+		}
+
+		positions.needsUpdate = true;
+	}
+
+}();
+
+THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromTransformMatrix = function() { 
+
+	var tempMatrix4 = new THREE.Matrix4();
+	var tempPosition = new THREE.Vector3();
+	var tempLocalHeadGeometry = [];
+
+	for ( var i = 0; i < THREE.TrailRenderer.MaxHeadVertices; i ++ ) {
+
+		var vertex = new THREE.Vector3();
+		tempLocalHeadGeometry.push( vertex );
+
+	}
+
+	return function updateNodePositionsFromTransformMatrix( nodeIndex, transformMatrix ) {
+
+		var positions = this.geometry.getAttribute( 'position' );
+	
+		for ( var i = 0; i < this.localHeadGeometry.length; i ++ ) {
+
+			var vertex = tempLocalHeadGeometry[ i ];
+			vertex.copy( this.localHeadGeometry[ i ] );
+			vertex.applyMatrix4( transformMatrix );
 		}
 
 		for ( var i = 0; i <  this.localHeadGeometry.length; i ++ ) {
