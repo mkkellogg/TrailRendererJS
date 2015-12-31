@@ -10,15 +10,18 @@ THREE.TrailRenderer = THREE.TrailRenderer || {};
 
 THREE.TrailRenderer.MaxHeadVertices = 128;
 THREE.TrailRenderer.LocalOrientationTangent = new THREE.Vector3( 1, 0, 0 );
+THREE.TrailRenderer.LocalOrientationDirection = new THREE.Vector3( 0, 0, -1 );
 THREE.TrailRenderer.LocalHeadOrigin = new THREE.Vector3( 0, 0, 0 );
 
-THREE.TrailRenderer.Renderer = function( length, scene, material, localHeadWidth, localHeadGeometry, targetObject ) {
+THREE.TrailRenderer.Renderer = function( length, scene, material, orientToMovement ) {
 
 	THREE.Object3D.call( this );
 
 	this.active = false;
 
-	this.targetObject = targetObject;
+	this.orientToMovement = false;
+	if ( orientToMovement ) this.orientToMovement = true;
+
 	this.length = ( length > 0 ) ? length + 1 : 0;
 	this.scene = scene;
 	this.material = material;
@@ -26,49 +29,14 @@ THREE.TrailRenderer.Renderer = function( length, scene, material, localHeadWidth
 	this.geometry = null;
 	this.mesh = null;
 	this.nodeCenters = null;
-	this.nodeIDs = null;
 
+	this.lastNodeCenter = null;
+	this.currentNodeCenter = null;
+	this.lastOrientationDir = null;
+	this.nodeIDs = null;
 	this.currentLength = 0;
 	this.currentEnd = 0;
-
 	this.currentNodeID = 0;
-
-	this.localHeadGeometry = [];
-
-	if ( ! localHeadGeometry ) {
-
-		var halfWidth = localHeadWidth || 1.0;
-		halfWidth = halfWidth / 2.0;
-
-		this.localHeadGeometry.push( new THREE.Vector3( -halfWidth, 0, 0 ) );
-		this.localHeadGeometry.push( new THREE.Vector3( halfWidth, 0, 0 ) );
-
-		this.VerticesPerNode = 2;
-
-	} else {
-
-		this.VerticesPerNode = 0;
-		for ( var i = 0; i < localHeadGeometry.length && i < THREE.TrailRenderer.MaxHeadVertices; i ++ ) {
-
-			var vertex = localHeadGeometry[ i ];
-
-			if ( vertex && vertex instanceof THREE.Vector3 ) {
-
-				var vertexCopy = new THREE.Vector3();
-
-				vertexCopy.copy( vertex );
-
-				this.localHeadGeometry.push( vertexCopy );
-				this.VerticesPerNode ++;
-
-			}
-
-		}
-
-	}
-
-	this.FacesPerNode = ( this.VerticesPerNode - 1 ) * 2;
-	this.FaceIndicesPerNode = this.FacesPerNode * 3;
 
 }
 
@@ -165,10 +133,56 @@ THREE.TrailRenderer.Renderer.createMaterial = function( vertexShader, fragmentSh
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.initialize = function() {
+THREE.TrailRenderer.Renderer.prototype.initializeLocalHeadGeometry = function( localHeadWidth, localHeadGeometry ) {
+
+	this.localHeadGeometry = [];
+
+	if ( ! localHeadGeometry ) {
+
+		var halfWidth = localHeadWidth || 1.0;
+		halfWidth = halfWidth / 2.0;
+
+		this.localHeadGeometry.push( new THREE.Vector3( -halfWidth, 0, 0 ) );
+		this.localHeadGeometry.push( new THREE.Vector3( halfWidth, 0, 0 ) );
+
+		this.VerticesPerNode = 2;
+
+	} else {
+
+		this.VerticesPerNode = 0;
+		for ( var i = 0; i < localHeadGeometry.length && i < THREE.TrailRenderer.MaxHeadVertices; i ++ ) {
+
+			var vertex = localHeadGeometry[ i ];
+
+			if ( vertex && vertex instanceof THREE.Vector3 ) {
+
+				var vertexCopy = new THREE.Vector3();
+
+				vertexCopy.copy( vertex );
+
+				this.localHeadGeometry.push( vertexCopy );
+				this.VerticesPerNode ++;
+
+			}
+
+		}
+
+	}
+
+	this.FacesPerNode = ( this.VerticesPerNode - 1 ) * 2;
+	this.FaceIndicesPerNode = this.FacesPerNode * 3;
+
+}
+
+THREE.TrailRenderer.Renderer.prototype.initialize = function( localHeadWidth, localHeadGeometry, targetObject ) {
+
+	this.targetObject = targetObject;
+
+	this.initializeLocalHeadGeometry( localHeadWidth, localHeadGeometry );
 
 	this.nodeIDs = [];
 	this.nodeCenters = [];
+
 	for (var i = 0; i < this.length; i ++ ) {
 
 		this.nodeIDs[ i ] = -1;
@@ -183,7 +197,7 @@ THREE.TrailRenderer.Renderer.prototype.initialize = function() {
 	this.material.uniforms.minID.value = 0;
 	this.material.uniforms.maxID.value = 0;
 
-	this.reset( new THREE.Vector3() );
+	this.reset();
 
 }
 
@@ -303,10 +317,24 @@ THREE.TrailRenderer.Renderer.prototype.reset = function() {
 	this.currentEnd = -1;
 	this.lastPosition = null;
 
+	this.lastNodeCenter = null;
+	this.currentNodeCenter = null;
+	this.lastOrientationDir = null;
+
+	this.currentNodeID = 0;
+
 	this.formInitialFaces();
 	this.zeroVertices();
 
 	this.geometry.setDrawRange( 0, 0 );
+
+}
+
+THREE.TrailRenderer.Renderer.prototype.updateUniforms = function() {
+
+	this.material.uniforms.maxID.value = this.currentNodeID;
+	this.material.uniforms.minID.value = this.currentNodeID - this.length;
+	this.material.uniforms.trailLength.value = this.currentLength;
 
 }
 
@@ -337,13 +365,6 @@ THREE.TrailRenderer.Renderer.prototype.advance = function() {
 
 }();
 
-THREE.TrailRenderer.Renderer.prototype.updateUniforms = function() {
-
-	this.material.uniforms.maxID.value = this.currentNodeID;
-	this.material.uniforms.minID.value = this.currentNodeID - this.length;
-
-}
-
 THREE.TrailRenderer.Renderer.prototype.advanceWithPositionAndOrientation = function( nextPosition, orientationTangent ) {
 
 	this.advanceGeometry( { position : nextPosition, tangent : orientationTangent }, null );
@@ -356,7 +377,6 @@ THREE.TrailRenderer.Renderer.prototype.advanceWithTransform = function( transfor
 
 }
 
-
 THREE.TrailRenderer.Renderer.prototype.advanceGeometry = function() { 
 
 	var direction = new THREE.Vector3();
@@ -364,18 +384,18 @@ THREE.TrailRenderer.Renderer.prototype.advanceGeometry = function() {
 
 	return function advanceGeometry( positionAndOrientation, transformMatrix ) {
 
+		var nextIndex = this.currentEnd + 1 >= this.length ? 0 : this.currentEnd + 1; 
+
+		if( transformMatrix ) {
+
+			this.updateNodePositionsFromTransformMatrix( nextIndex, transformMatrix );
+
+		} else {
+
+			this.updateNodePositionsFromOrientationTangent( nextIndex, positionAndOrientation.position, positionAndOrientation.tangent );
+		}
+
 		if ( this.currentLength >= 1 ) {
-
-			var nextIndex = this.currentEnd + 1 >= this.length ? 0 : this.currentEnd + 1; 
-
-			if( transformMatrix ) {
-
-				this.updateNodePositionsFromTransformMatrix( nextIndex, transformMatrix );
-
-			} else {
-
-				this.updateNodePositionsFromOrientationTangent( nextIndex, positionAndOrientation.position, positionAndOrientation.tangent );
-			}
 
 			this.connectNodes( this.currentEnd , nextIndex );
 
@@ -414,21 +434,25 @@ THREE.TrailRenderer.Renderer.prototype.advanceGeometry = function() {
 			}
 
 		}
-
-		if ( transformMatrix ) {
-
-			tempPosition.set( 0, 0, 0 );
-			tempPosition.applyMatrix4( transformMatrix );
-			this.updateNodeCenter( this.currentEnd, tempPosition );
-
-		} else {
-
-			this.updateNodeCenter( this.currentEnd, positionAndOrientation.position );
-
-		}
 		
 		this.updateNodeID( this.currentEnd,  this.currentNodeID );
 		this.currentNodeID ++;
+	}
+
+}();
+
+THREE.TrailRenderer.Renderer.prototype.updateHead = function() {
+
+	var tempMatrix4 = new THREE.Matrix4();
+
+	return function advance() {
+
+		if( this.currentEnd < 0 ) return;
+
+		this.targetObject.updateMatrixWorld();
+		tempMatrix4.copy( this.targetObject.matrixWorld );
+
+		this.updateNodePositionsFromTransformMatrix( this.currentEnd, tempMatrix4 );
 	}
 
 }();
@@ -452,7 +476,10 @@ THREE.TrailRenderer.Renderer.prototype.updateNodeID = function( nodeIndex, id ) 
 
 THREE.TrailRenderer.Renderer.prototype.updateNodeCenter = function( nodeIndex, nodeCenter ) { 
 
-	this.nodeCenters[ nodeIndex ].copy( nodeCenter );
+	this.lastNodeCenter = this.currentNodeCenter;
+
+	this.currentNodeCenter = this.nodeCenters[ nodeIndex ];
+	this.currentNodeCenter.copy( nodeCenter );
 
 	var nodeCenters = this.geometry.getAttribute( 'nodeCenter' );
 
@@ -487,6 +514,8 @@ THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromOrientationTangent
 
 		var positions = this.geometry.getAttribute( 'position' );
 
+		this.updateNodeCenter( nodeIndex, nodeCenter );
+
 		tempOffset.copy( nodeCenter );
 		tempOffset.sub( THREE.TrailRenderer.LocalHeadOrigin );
 		tempQuaternion.setFromUnitVectors( THREE.TrailRenderer.LocalOrientationTangent, orientationTangent );
@@ -518,9 +547,14 @@ THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromOrientationTangent
 THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromTransformMatrix = function() { 
 
 	var tempMatrix4 = new THREE.Matrix4();
+	var tempMatrix3 = new THREE.Matrix3();
+	var tempQuaternion = new THREE.Quaternion();
 	var tempPosition = new THREE.Vector3();
-	var tempLocalHeadGeometry = [];
+	var tempOffset = new THREE.Vector3();
+	var worldOrientation = new THREE.Vector3();
+	var tempDirection = new THREE.Vector3();
 
+	var tempLocalHeadGeometry = [];
 	for ( var i = 0; i < THREE.TrailRenderer.MaxHeadVertices; i ++ ) {
 
 		var vertex = new THREE.Vector3();
@@ -528,18 +562,73 @@ THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromTransformMatrix = 
 
 	}
 
+	function getMatrix3FromMatrix4( matrix3, matrix4) {
+
+		var e = matrix4.elements;
+		matrix3.set( e[0], e[1], e[2],
+					 e[4], e[5], e[6],
+					 e[8], e[9], e[10] );
+
+	}
+
 	return function updateNodePositionsFromTransformMatrix( nodeIndex, transformMatrix ) {
 
 		var positions = this.geometry.getAttribute( 'position' );
-	
+
+		tempPosition.set( 0, 0, 0 );
+		tempPosition.applyMatrix4( transformMatrix );
+		this.updateNodeCenter( nodeIndex, tempPosition );
+
 		for ( var i = 0; i < this.localHeadGeometry.length; i ++ ) {
 
 			var vertex = tempLocalHeadGeometry[ i ];
 			vertex.copy( this.localHeadGeometry[ i ] );
-			vertex.applyMatrix4( transformMatrix );
+
 		}
 
-		for ( var i = 0; i <  this.localHeadGeometry.length; i ++ ) {
+		for ( var i = 0; i < this.localHeadGeometry.length; i ++ ) {
+
+			var vertex = tempLocalHeadGeometry[ i ];
+			vertex.applyMatrix4( transformMatrix );
+
+		}
+		
+		if( this.lastNodeCenter && this.orientToMovement ) {
+
+			getMatrix3FromMatrix4( tempMatrix3, transformMatrix );
+			worldOrientation.set( 0, 0, -1 );
+			worldOrientation.applyMatrix3( tempMatrix3 );
+
+			tempDirection.copy( this.currentNodeCenter );
+			tempDirection.sub( this.lastNodeCenter );
+			tempDirection.normalize();
+
+			if( tempDirection.lengthSq() <= .0001 && this.lastOrientationDir ) {
+				
+				tempDirection.copy( this.lastOrientationDir );
+			}
+
+			if( tempDirection.lengthSq() > .0001 ) {
+
+				if( ! this.lastOrientationDir ) this.lastOrientationDir = new THREE.Vector3();
+
+				tempQuaternion.setFromUnitVectors( worldOrientation, tempDirection );
+
+				tempOffset.copy( this.currentNodeCenter );
+
+				for ( var i = 0; i < this.localHeadGeometry.length; i ++ ) {
+
+					var vertex = tempLocalHeadGeometry[ i ];
+					vertex.sub( tempOffset );
+					vertex.applyQuaternion( tempQuaternion );
+					vertex.add( tempOffset );
+
+				}
+			}
+
+		}
+	
+		for ( var i = 0; i < this.localHeadGeometry.length; i ++ ) {
 
 			var positionIndex = ( ( this.VerticesPerNode * nodeIndex ) + i ) * 3;
 			var transformedHeadVertex = tempLocalHeadGeometry[ i ];
@@ -549,7 +638,7 @@ THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromTransformMatrix = 
 			positions.array[ positionIndex + 2 ] = transformedHeadVertex.z;
 
 		}
-
+		
 		positions.needsUpdate = true;
 	}
 

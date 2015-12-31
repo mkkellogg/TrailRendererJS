@@ -44,7 +44,7 @@
 	var scene, gui, renderer, clock;
 	var camera, pointLight, ambientLight, controls, stats;
 	var options;
-	var ballTrail, lastTrailUpdateTime;
+	var ballTrail, lastTrailUpdateTime, lastTrailResetTime;
 
 	window.addEventListener( "load", function load( event ) {
 
@@ -58,6 +58,7 @@
 
 		clock = new THREE.Clock();
 		lastTrailUpdateTime = performance.now();
+		lastTrailResetTime = performance.now();
 
 		getScreenDimensions();
 
@@ -195,8 +196,8 @@
 		trailMaterial.uniforms.headColor.value.set( 1.0, 0.0, 0.0, 1.0 );
 		trailMaterial.uniforms.tailColor.value.set( 1.0, 1.0, 0.0, 0.0 );
 
-		ballTrail = new THREE.TrailRenderer.Renderer( 100, scene, trailMaterial, 0, localHeadGeometry, ball );
-		ballTrail.initialize();
+		ballTrail = new THREE.TrailRenderer.Renderer( 100, scene, trailMaterial, true );
+		ballTrail.initialize( 0, localHeadGeometry, ball );
 
 		console.log( ballTrail );
 
@@ -259,10 +260,14 @@
 
 	function updateBall( time ) {
 
-		if( time - lastTrailUpdateTime > .1 ) {
+		if ( time - lastTrailUpdateTime > 10 ) {
 
 			ballTrail.advance();
 			lastTrailUpdateTime = time;
+
+		} else {
+
+			ballTrail.updateHead();
 
 		}
 
