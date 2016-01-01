@@ -40,11 +40,12 @@
 
 <script>
 
-	var ball;
 	var scene, gui, renderer, clock;
 	var camera, pointLight, ambientLight, controls, stats;
+	
 	var options;
-	var ballTrail, lastTrailUpdateTime, lastTrailResetTime;
+	var starPoints, circlePoints, trailTarget;
+	var trailHeadGeometry, trail, trailMaterial, lastTrailUpdateTime, lastTrailResetTime;
 
 	window.addEventListener( "load", function load( event ) {
 
@@ -62,10 +63,10 @@
 
 		getScreenDimensions();
 
+		initTrailOptions();
 		initScene();
 		initGUI();
 		initListeners();
-
 		initLights();
 
 		initSceneGeometry( function() {
@@ -80,30 +81,42 @@
 
 	}
 
-	function initGUI() {
+	function initTrailOptions() {
 
-		gui = new dat.GUI();
-		      // options passed during each spawned
-	    options = {
-			position: new THREE.Vector3(),
-			positionRandomness: .3,
-			velocity: new THREE.Vector3(),
-			velocityRandomness: .5,
-			color: 0xaa88ff,
-			colorRandomness: .2,
-			turbulence: .5,
-			lifetime: 2,
-			size: 5,
-			sizeRandomness: 1
+		 options = {
+
+	    	headRed : 1.0,
+	    	headGreen : 0.0,
+	    	headBlue : 0.0,
+	    	headAlpha : 1.0,
+
+	    	tailRed : 1.0,
+	    	tailGreen : 1.0,
+	    	tailBlue : 0.0,
+	    	tailAlpha : 0.3,
+
+	    	trailLength : 100
 	    };
 
-		gui.add(options, "velocityRandomness", 0, 3);
-		gui.add(options, "positionRandomness", 0, 3);
-		gui.add(options, "size", 1, 20);
-		gui.add(options, "sizeRandomness", 0, 25);
-		gui.add(options, "colorRandomness", 0, 1);
-		gui.add(options, "lifetime", .1, 10);
-		gui.add(options, "turbulence", 0, 1);
+	}
+
+	function initGUI() {
+
+		gui = new dat.GUI();  
+		
+		var headColor = gui.addFolder( "Head color" );
+		headColor.add( options, "headRed", 0.0, 1.0, 0.025 ).name( "Red" ).onChange( updateTrailOptions );
+		headColor.add( options, "headGreen", 0.0, 1.0, 0.025 ).name( "Green" ).onChange( updateTrailOptions );
+		headColor.add( options, "headBlue", 0.0, 1.0, 0.025 ).name( "Blue" ).onChange( updateTrailOptions );
+		headColor.add( options, "headAlpha", 0.0, 1.0, 0.025 ).name( "Alpha" ).onChange( updateTrailOptions );
+
+		var tailColor = gui.addFolder( "Tail color" );
+		tailColor.add( options, "tailRed", 0.0, 1.0, 0.025 ).name( "Red" ).onChange( updateTrailOptions );
+		tailColor.add( options, "tailGreen", 0.0, 1.0, 0.025 ).name( "Green" ).onChange( updateTrailOptions );
+		tailColor.add( options, "tailBlue", 0.0, 1.0, 0.025 ).name( "Blue" ).onChange( updateTrailOptions );
+		tailColor.add( options, "tailAlpha", 0.0, 1.0, 0.025 ).name( "Alpha" ).onChange( updateTrailOptions );
+
+		gui.add(options, "trailLength", 0, 1000).name( "Trail Length" ).onChange( reinitializeTrail );
 
 		gui.domElement.parentNode.style.zIndex = 100;
 
@@ -147,62 +160,101 @@
 	}
 
 	function initSceneGeometry( onFinished ) {
+		
+		circlePoints = [];
+		var twoPI = Math.PI * 2;
+		var index = 0;
+		var scale = 10.0;
+		var inc = twoPI / 32.0;
 
-		var ballMaterial = new THREE.MeshPhongMaterial( {
+		for ( var i = 0; i <= twoPI + inc; i+= inc )  {
+
+			var vector = new THREE.Vector3();
+			vector.set( Math.cos( i ) * scale, Math.sin( i ) * scale, 0 );
+			circlePoints[ index ] = vector;
+			index ++;
+
+		}
+
+		starPoints = [];
+		starPoints.push( new THREE.Vector3 (  0,  16 ) );
+		starPoints.push( new THREE.Vector3 (  4,  4 ) );
+		starPoints.push( new THREE.Vector3 (  16,  4 ) );
+		starPoints.push( new THREE.Vector3 (  8, -4 ) );
+		starPoints.push( new THREE.Vector3 (  12, -16 ) );
+		starPoints.push( new THREE.Vector3 (   0, -8 ) );
+		starPoints.push( new THREE.Vector3 ( -12, -16 ) );
+		starPoints.push( new THREE.Vector3 ( -8, -4 ) );
+		starPoints.push( new THREE.Vector3 ( -16,  4 ) );
+		starPoints.push( new THREE.Vector3 ( -4,  4 ) );
+		starPoints.push( new THREE.Vector3 (  0,  16 ) );
+
+
+		var starShape = new THREE.Shape( starPoints );
+
+		var extrusionSettings = {
+		    amount: 2, size: 2, height: 1, curveSegments: 3,
+		    bevelThickness: 1, bevelSize: 2, bevelEnabled: false,
+		    material: 0, extrudeMaterial: 1
+		};
+
+		var starGeometry = new THREE.ExtrudeGeometry( starShape, extrusionSettings );
+
+		var ballGeometry = new THREE.SphereGeometry( 10, 32, 32 );
+
+		var trailTargetMaterial = new THREE.MeshPhongMaterial( {
 			color: 0xa0adaf,
 			shininess: 10,
 			specular: 0x111111,
 			shading: THREE.SmoothShading
 		} );
 
-		var ballGeometry = new THREE.SphereGeometry( 10, 32, 32 );
-		ball = new THREE.Mesh( ballGeometry, ballMaterial );
-		ball.position.set( 0, 0, 0 );
-		ball.scale.multiplyScalar( 1 );
-		ball.receiveShadow = false;
-		scene.add( ball );
+		trailTarget = new THREE.Mesh( starGeometry, trailTargetMaterial );
+		trailTarget.position.set( 0, 0, 0 );
+		trailTarget.scale.multiplyScalar( 1 );
+		trailTarget.receiveShadow = false;
+
+		scene.add( trailTarget );
 
 		onFinished();
 
 	}
 
-	function initTrailRenderers() {
+	function initTrailHeadGeometry( geometry ) {
 
-		var localHeadGeometry = [];
-		var twoPI = Math.PI * 2;
-		var index = 0;
-		var scale = 10.0;
-		var inc = twoPI / 32.0;
-		for ( var i = 0; i <= twoPI + inc; i+= inc )  {
+		trailHeadGeometry = [];
+
+		for( var i = 0; i < geometry.length; i++ ) {
 
 			var vector = new THREE.Vector3();
-			vector.set( Math.cos( i ) * scale, Math.sin( i ) * scale, 0 );
-			localHeadGeometry[ index ] = vector;
-			index ++;
+			vector.copy( geometry[ i ] );
+			trailHeadGeometry[ i ] = vector;
 
 		}
 
-		var trailMaterial = THREE.TrailRenderer.Renderer.createMaterial( 
-			THREE.TrailRenderer.Renderer.Shader.VertexShader, 
-			THREE.TrailRenderer.Renderer.Shader.FragmentShader, 
-			{}
+	}
+
+	function initTrailRenderers() {
+
+		initTrailHeadGeometry( starPoints );
+
+		trail = new THREE.TrailRenderer( scene, false );
+
+		trailMaterial = THREE.TrailRenderer.createMaterial( 
+			THREE.TrailRenderer.Shader.VertexShader, 
+			THREE.TrailRenderer.Shader.FragmentShader
 		);
 
-		trailMaterial.blending = THREE.CustomBlending;
-		trailMaterial.blendSrc = THREE.SrcAlphaFactor;
-		trailMaterial.blendDst = THREE.OneMinusSrcAlphaFactor;
-		trailMaterial.blendEquation = THREE.AddEquation;
-
-		trailMaterial.uniforms.headColor.value.set( 1.0, 0.0, 0.0, 1.0 );
-		trailMaterial.uniforms.tailColor.value.set( 1.0, 1.0, 0.0, 0.0 );
-
-		ballTrail = new THREE.TrailRenderer.Renderer( 100, scene, trailMaterial, true );
-		ballTrail.initialize( 0, localHeadGeometry, ball );
-
-		console.log( ballTrail );
-
-		ballTrail.activate();
+		reinitializeTrail();
 		
+	}
+
+	function reinitializeTrail() {
+
+		trail.initialize( trailMaterial, Math.floor(options.trailLength), 0, trailHeadGeometry, trailTarget );
+		updateTrailOptions();
+		trail.activate();
+
 	}
 
 	function initScene() {
@@ -258,26 +310,101 @@
 
 	}
 
-	function updateBall( time ) {
+	function updateTrailOptions() {
 
-		if ( time - lastTrailUpdateTime > 10 ) {
+		trailMaterial.uniforms.headColor.value.set( options.headRed, options.headGreen, options.headBlue, options.headAlpha );
+		trailMaterial.uniforms.tailColor.value.set( options.tailRed, options.tailGreen, options.tailBlue, options.tailAlpha );
 
-			ballTrail.advance();
-			lastTrailUpdateTime = time;
+	}
 
-		} else {
+	var updateTrailTarget = function updateTrailTarget() {
 
-			ballTrail.updateHead();
+		var tempQuaternion = new THREE.Quaternion();
+
+		var baseForward = new THREE.Vector3( 0, 0, -1 );
+		var tempForward = new THREE.Vector3();
+		var tempUp = new THREE.Vector3();
+
+		var tempRotationMatrix= new THREE.Matrix4();
+		var tempTranslationMatrix= new THREE.Matrix4();
+
+		var currentTargetPosition = new THREE.Vector3();
+		var lastTargetPosition = new THREE.Vector3();
+
+		var currentDirection = new THREE.Vector3();
+		var lastDirection= new THREE.Vector3();
+
+		var lastRotationMatrix = new THREE.Matrix4();
+
+		function getMatrix3FromMatrix4( matrix3, matrix4) {
+
+			var e = matrix4.elements;
+			matrix3.set( e[0], e[1], e[2],
+						 e[4], e[5], e[6],
+						 e[8], e[9], e[10] );
 
 		}
 
-		var scaledTime = time * .001;
-		var areaScale = 120;
-		ball.position.x = Math.sin( scaledTime ) * areaScale;
-		ball.position.y = Math.sin( scaledTime * 1.1 ) * areaScale;
-		ball.position.z = Math.sin( scaledTime * 1.6 ) * areaScale;
+		return function updateTrailTarget( time ) {
 
-	}
+			if ( time - lastTrailUpdateTime > 10 ) {
+
+				trail.advance();
+				lastTrailUpdateTime = time;
+
+			} else {
+
+				trail.updateHead();
+
+			}
+
+			/*if ( time - lastTrailResetTime > 2000 ) {
+
+				trail.reset();
+				lastTrailResetTime = time;
+
+			}*/
+
+			tempRotationMatrix.identity();
+			tempTranslationMatrix.identity();
+
+			var scaledTime = time * .001;
+			var areaScale = 100;
+
+			lastTargetPosition.copy( currentTargetPosition );
+
+			currentTargetPosition.x = Math.sin( scaledTime ) * areaScale;
+			currentTargetPosition.y = Math.sin( scaledTime * 1.1 ) * areaScale;
+			currentTargetPosition.z = Math.sin( scaledTime * 1.6 ) * areaScale;
+
+			lastDirection.copy( currentDirection );
+
+			currentDirection.copy( currentTargetPosition );
+			currentDirection.sub( lastTargetPosition );
+			currentDirection.normalize();
+
+			tempUp.crossVectors( currentDirection, baseForward );
+			var angle = baseForward.angleTo( currentDirection );
+
+			if( Math.abs( angle ) > .01 && tempUp.lengthSq() > .001 ) {
+
+				tempQuaternion.setFromUnitVectors( baseForward, currentDirection );
+				tempQuaternion.normalize();
+				tempRotationMatrix.makeRotationFromQuaternion( tempQuaternion );
+				lastRotationMatrix.copy( tempRotationMatrix );							
+
+			}
+			
+			tempTranslationMatrix.makeTranslation ( currentTargetPosition.x, currentTargetPosition.y, currentTargetPosition.z );
+			tempTranslationMatrix.multiply( tempRotationMatrix );  
+
+			trailTarget.matrix.identity();
+			trailTarget.applyMatrix( tempTranslationMatrix );
+			trailTarget.updateMatrixWorld();
+
+		}
+
+	}();
 
 	function animate() {
 
@@ -291,7 +418,7 @@
 
 		var time = performance.now();
 
-		updateBall( time );
+		updateTrailTarget( time );
 
 		controls.update();
 		stats.update();

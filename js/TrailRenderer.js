@@ -6,14 +6,7 @@
 // Trail Renderer
 //=======================================
 
-THREE.TrailRenderer = THREE.TrailRenderer || {};
-
-THREE.TrailRenderer.MaxHeadVertices = 128;
-THREE.TrailRenderer.LocalOrientationTangent = new THREE.Vector3( 1, 0, 0 );
-THREE.TrailRenderer.LocalOrientationDirection = new THREE.Vector3( 0, 0, -1 );
-THREE.TrailRenderer.LocalHeadOrigin = new THREE.Vector3( 0, 0, 0 );
-
-THREE.TrailRenderer.Renderer = function( length, scene, material, orientToMovement ) {
+THREE.TrailRenderer = function( scene, orientToMovement ) {
 
 	THREE.Object3D.call( this );
 
@@ -22,9 +15,7 @@ THREE.TrailRenderer.Renderer = function( length, scene, material, orientToMoveme
 	this.orientToMovement = false;
 	if ( orientToMovement ) this.orientToMovement = true;
 
-	this.length = ( length > 0 ) ? length + 1 : 0;
 	this.scene = scene;
-	this.material = material;
 
 	this.geometry = null;
 	this.mesh = null;
@@ -40,11 +31,16 @@ THREE.TrailRenderer.Renderer = function( length, scene, material, orientToMoveme
 
 }
 
-THREE.TrailRenderer.Renderer.prototype = Object.create( THREE.Object3D.prototype );
-THREE.TrailRenderer.Renderer.constructor = THREE.TrailRenderer.Renderer;
+THREE.TrailRenderer.prototype = Object.create( THREE.Object3D.prototype );
+THREE.TrailRenderer.constructor = THREE.TrailRenderer;
 
-THREE.TrailRenderer.Renderer.Shader = {};
-THREE.TrailRenderer.Renderer.Shader.VertexVars = [
+THREE.TrailRenderer.MaxHeadVertices = 128;
+THREE.TrailRenderer.LocalOrientationTangent = new THREE.Vector3( 1, 0, 0 );
+THREE.TrailRenderer.LocalOrientationDirection = new THREE.Vector3( 0, 0, -1 );
+THREE.TrailRenderer.LocalHeadOrigin = new THREE.Vector3( 0, 0, 0 );
+
+THREE.TrailRenderer.Shader = {};
+THREE.TrailRenderer.Shader.VertexVars = [
 
 	"attribute float nodeID;",
 	"attribute vec3 nodeCenter;",
@@ -61,7 +57,7 @@ THREE.TrailRenderer.Renderer.Shader.VertexVars = [
 
 ].join( "\n" );
 
-THREE.TrailRenderer.Renderer.Shader.FragmentVars = [
+THREE.TrailRenderer.Shader.FragmentVars = [
 
 	"varying vec2 vUV;",
 	"varying vec4 vColor;",
@@ -70,9 +66,9 @@ THREE.TrailRenderer.Renderer.Shader.FragmentVars = [
 
 ].join( "\n" );
 
-THREE.TrailRenderer.Renderer.Shader.VertexShader = [
+THREE.TrailRenderer.Shader.VertexShader = [
 
-	THREE.TrailRenderer.Renderer.Shader.VertexVars,
+	THREE.TrailRenderer.Shader.VertexVars,
 
 	"void main() { ",
 
@@ -86,9 +82,9 @@ THREE.TrailRenderer.Renderer.Shader.VertexShader = [
 
 ].join( "\n" );
 
-THREE.TrailRenderer.Renderer.Shader.FragmentShader = [
+THREE.TrailRenderer.Shader.FragmentShader = [
 
-	THREE.TrailRenderer.Renderer.Shader.FragmentVars,
+	THREE.TrailRenderer.Shader.FragmentVars,
 
 	"void main() { ",
 
@@ -100,7 +96,7 @@ THREE.TrailRenderer.Renderer.Shader.FragmentShader = [
 
 ].join( "\n" );
 
-THREE.TrailRenderer.Renderer.createMaterial = function( vertexShader, fragmentShader, customUniforms ) {
+THREE.TrailRenderer.createMaterial = function( vertexShader, fragmentShader, customUniforms ) {
 
 	customUniforms = customUniforms || {};
 
@@ -111,8 +107,8 @@ THREE.TrailRenderer.Renderer.createMaterial = function( vertexShader, fragmentSh
 	customUniforms.headColor = { type: "v4", value: new THREE.Vector4() };
 	customUniforms.tailColor = { type: "v4", value: new THREE.Vector4() };
 
-	vertexShader = vertexShader || THREE.TrailRenderer.Renderer.Shader.VertexShader;
-	fragmentShader = fragmentShader || THREE.TrailRenderer.Renderer.Shader.FragmentShader;
+	vertexShader = vertexShader || THREE.TrailRenderer.Shader.VertexShader;
+	fragmentShader = fragmentShader || THREE.TrailRenderer.Shader.FragmentShader;
 
 	return new THREE.ShaderMaterial(
 	{
@@ -123,7 +119,10 @@ THREE.TrailRenderer.Renderer.createMaterial = function( vertexShader, fragmentSh
 		transparent: true,
 		alphaTest: 0.5,
 
-		blending: THREE.NormalBlending,
+		blending : THREE.CustomBlending,
+		blendSrc : THREE.SrcAlphaFactor,
+		blendDst : THREE.OneMinusSrcAlphaFactor,
+		blendEquation : THREE.AddEquation,
 
 		depthTest: true,
 		depthWrite: false,
@@ -133,7 +132,40 @@ THREE.TrailRenderer.Renderer.createMaterial = function( vertexShader, fragmentSh
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.initializeLocalHeadGeometry = function( localHeadWidth, localHeadGeometry ) {
+THREE.TrailRenderer.prototype.initialize = function( material, length, localHeadWidth, localHeadGeometry, targetObject ) {
+
+		this.deactivate();
+		this.destroyMesh();
+
+		this.length = ( length > 0 ) ? length + 1 : 0;
+		this.targetObject = targetObject;
+
+		this.initializeLocalHeadGeometry( localHeadWidth, localHeadGeometry );
+
+		this.nodeIDs = [];
+		this.nodeCenters = [];
+
+		for (var i = 0; i < this.length; i ++ ) {
+
+			this.nodeIDs[ i ] = -1;
+			this.nodeCenters[ i ] = new THREE.Vector3();
+
+		}
+
+		this.material = material;
+
+		this.initializeGeometry();
+		this.initializeMesh();
+
+		this.material.uniforms.trailLength.value = this.length;
+		this.material.uniforms.minID.value = 0;
+		this.material.uniforms.maxID.value = 0;
+
+		this.reset();
+
+}
+
+THREE.TrailRenderer.prototype.initializeLocalHeadGeometry = function( localHeadWidth, localHeadGeometry ) {
 
 	this.localHeadGeometry = [];
 
@@ -174,34 +206,7 @@ THREE.TrailRenderer.Renderer.prototype.initializeLocalHeadGeometry = function( l
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.initialize = function( localHeadWidth, localHeadGeometry, targetObject ) {
-
-	this.targetObject = targetObject;
-
-	this.initializeLocalHeadGeometry( localHeadWidth, localHeadGeometry );
-
-	this.nodeIDs = [];
-	this.nodeCenters = [];
-
-	for (var i = 0; i < this.length; i ++ ) {
-
-		this.nodeIDs[ i ] = -1;
-		this.nodeCenters[ i ] = new THREE.Vector3();
-
-	}
-
-	this.initializeGeometry();
-	this.initializeMesh();
-
-	this.material.uniforms.trailLength.value = this.length;
-	this.material.uniforms.minID.value = 0;
-	this.material.uniforms.maxID.value = 0;
-
-	this.reset();
-
-}
-
-THREE.TrailRenderer.Renderer.prototype.initializeGeometry = function() {
+THREE.TrailRenderer.prototype.initializeGeometry = function() {
 
 	this.vertexCount = this.length * this.VerticesPerNode;
 	this.faceCount = this.length * this.FacesPerNode;
@@ -238,7 +243,7 @@ THREE.TrailRenderer.Renderer.prototype.initializeGeometry = function() {
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.zeroVertices = function( ) {
+THREE.TrailRenderer.prototype.zeroVertices = function( ) {
 
 	var positions = this.geometry.getAttribute( 'position' );
 
@@ -256,7 +261,7 @@ THREE.TrailRenderer.Renderer.prototype.zeroVertices = function( ) {
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.zeroIndices = function( ) {
+THREE.TrailRenderer.prototype.zeroIndices = function( ) {
 
 	var indices = this.geometry.getIndex();
 
@@ -274,7 +279,7 @@ THREE.TrailRenderer.Renderer.prototype.zeroIndices = function( ) {
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.formInitialFaces = function() {
+THREE.TrailRenderer.prototype.formInitialFaces = function() {
 
 	this.zeroIndices();
 
@@ -290,9 +295,7 @@ THREE.TrailRenderer.Renderer.prototype.formInitialFaces = function() {
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.initializeMesh = function() {
-
-	this.destroyMesh();
+THREE.TrailRenderer.prototype.initializeMesh = function() {
 
 	this.mesh = new THREE.Mesh( this.geometry, this.material );
 	this.mesh.dynamic = true;
@@ -300,22 +303,21 @@ THREE.TrailRenderer.Renderer.prototype.initializeMesh = function() {
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.destroyMesh = function() {
+THREE.TrailRenderer.prototype.destroyMesh = function() {
 
 	if ( this.mesh ) {
 
 		this.scene.remove( this.mesh );
-		this.trailMesh = null;
+		this.mesh = null;
 
 	}
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.reset = function() {
+THREE.TrailRenderer.prototype.reset = function() {
 
 	this.currentLength = 0;
 	this.currentEnd = -1;
-	this.lastPosition = null;
 
 	this.lastNodeCenter = null;
 	this.currentNodeCenter = null;
@@ -330,15 +332,23 @@ THREE.TrailRenderer.Renderer.prototype.reset = function() {
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.updateUniforms = function() {
+THREE.TrailRenderer.prototype.updateUniforms = function() {
 
+	if ( this.currentLength < this.length ) {
+		
+		this.material.uniforms.minID.value = 0;
+
+	} else {
+
+		this.material.uniforms.minID.value = this.currentNodeID - this.length;
+
+	}
 	this.material.uniforms.maxID.value = this.currentNodeID;
-	this.material.uniforms.minID.value = this.currentNodeID - this.length;
 	this.material.uniforms.trailLength.value = this.currentLength;
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.advance = function() {
+THREE.TrailRenderer.prototype.advance = function() {
 
 	var orientationTangent = new THREE.Vector3();
 	var position = new THREE.Vector3();
@@ -365,19 +375,19 @@ THREE.TrailRenderer.Renderer.prototype.advance = function() {
 
 }();
 
-THREE.TrailRenderer.Renderer.prototype.advanceWithPositionAndOrientation = function( nextPosition, orientationTangent ) {
+THREE.TrailRenderer.prototype.advanceWithPositionAndOrientation = function( nextPosition, orientationTangent ) {
 
 	this.advanceGeometry( { position : nextPosition, tangent : orientationTangent }, null );
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.advanceWithTransform = function( transformMatrix ) {
+THREE.TrailRenderer.prototype.advanceWithTransform = function( transformMatrix ) {
 
 	this.advanceGeometry( null, transformMatrix );
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.advanceGeometry = function() { 
+THREE.TrailRenderer.prototype.advanceGeometry = function() { 
 
 	var direction = new THREE.Vector3();
 	var tempPosition = new THREE.Vector3();
@@ -441,7 +451,7 @@ THREE.TrailRenderer.Renderer.prototype.advanceGeometry = function() {
 
 }();
 
-THREE.TrailRenderer.Renderer.prototype.updateHead = function() {
+THREE.TrailRenderer.prototype.updateHead = function() {
 
 	var tempMatrix4 = new THREE.Matrix4();
 
@@ -457,7 +467,7 @@ THREE.TrailRenderer.Renderer.prototype.updateHead = function() {
 
 }();
 
-THREE.TrailRenderer.Renderer.prototype.updateNodeID = function( nodeIndex, id ) { 
+THREE.TrailRenderer.prototype.updateNodeID = function( nodeIndex, id ) { 
 
 	this.nodeIDs[ nodeIndex ] = id;
 
@@ -474,7 +484,7 @@ THREE.TrailRenderer.Renderer.prototype.updateNodeID = function( nodeIndex, id ) 
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.updateNodeCenter = function( nodeIndex, nodeCenter ) { 
+THREE.TrailRenderer.prototype.updateNodeCenter = function( nodeIndex, nodeCenter ) { 
 
 	this.lastNodeCenter = this.currentNodeCenter;
 
@@ -496,7 +506,7 @@ THREE.TrailRenderer.Renderer.prototype.updateNodeCenter = function( nodeIndex, n
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromOrientationTangent = function() { 
+THREE.TrailRenderer.prototype.updateNodePositionsFromOrientationTangent = function() { 
 
 	var tempMatrix4 = new THREE.Matrix4();
 	var tempQuaternion = new THREE.Quaternion();
@@ -544,7 +554,7 @@ THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromOrientationTangent
 
 }();
 
-THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromTransformMatrix = function() { 
+THREE.TrailRenderer.prototype.updateNodePositionsFromTransformMatrix = function() { 
 
 	var tempMatrix4 = new THREE.Matrix4();
 	var tempMatrix3 = new THREE.Matrix3();
@@ -644,7 +654,7 @@ THREE.TrailRenderer.Renderer.prototype.updateNodePositionsFromTransformMatrix = 
 
 }();
 
-THREE.TrailRenderer.Renderer.prototype.connectNodes = function( srcNodeIndex, destNodeIndex ) {
+THREE.TrailRenderer.prototype.connectNodes = function( srcNodeIndex, destNodeIndex ) {
 
 	var indices = this.geometry.getIndex();
 
@@ -669,7 +679,7 @@ THREE.TrailRenderer.Renderer.prototype.connectNodes = function( srcNodeIndex, de
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.disconnectNodes = function( srcNodeIndex ) {
+THREE.TrailRenderer.prototype.disconnectNodes = function( srcNodeIndex ) {
 
 	var indices = this.geometry.getIndex();
 
@@ -693,7 +703,7 @@ THREE.TrailRenderer.Renderer.prototype.disconnectNodes = function( srcNodeIndex 
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.deactivate = function() {
+THREE.TrailRenderer.prototype.deactivate = function() {
 
 	if ( this.isActive ) {
 
@@ -704,7 +714,7 @@ THREE.TrailRenderer.Renderer.prototype.deactivate = function() {
 
 }
 
-THREE.TrailRenderer.Renderer.prototype.activate = function() {
+THREE.TrailRenderer.prototype.activate = function() {
 
 	if ( ! this.isActive ) {
 
@@ -712,19 +722,6 @@ THREE.TrailRenderer.Renderer.prototype.activate = function() {
 		this.isActive = true;
 
 	}
-
-}
-
-THREE.TrailRenderer.Renderer.prototype.getVector3FromAttribute = function( attribute, nodeIndex, subIndex, target ) {
-
-	var offset = 0;
-	if ( subIndex ) offset += 3;
-
-	var x = attribute.array[ nodeIndex * 3 + offset ];
-	var y = attribute.array[ nodeIndex * 3 + offset + 1 ];
-	var z = attribute.array[ nodeIndex * 3 + offset + 2 ];
-
-	target.set( x, y, z );
 
 }
 
