@@ -40,57 +40,107 @@ THREE.TrailRenderer.LocalOrientationDirection = new THREE.Vector3( 0, 0, -1 );
 THREE.TrailRenderer.LocalHeadOrigin = new THREE.Vector3( 0, 0, 0 );
 
 THREE.TrailRenderer.Shader = {};
-THREE.TrailRenderer.Shader.VertexVars = [
+
+THREE.TrailRenderer.Shader.BaseVertexVars = [
 
 	"attribute float nodeID;",
+	"attribute float nodeVertexID;",
 	"attribute vec3 nodeCenter;",
 
 	"uniform float minID;",
 	"uniform float maxID;",
 	"uniform float trailLength;",
+	"uniform float verticesPerNode;",
+	"uniform vec2 textureTileFactor;",
 
 	"uniform vec4 headColor;",
 	"uniform vec4 tailColor;",
 
-	"varying vec2 vUV;",
 	"varying vec4 vColor;",
 
 ].join( "\n" );
 
-THREE.TrailRenderer.Shader.FragmentVars = [
+THREE.TrailRenderer.Shader.TexturedVertexVars = [
 
-	"varying vec2 vUV;",
+	THREE.TrailRenderer.Shader.BaseVertexVars, 
+	"varying vec2 vUV;"
+
+].join( "\n" );
+
+THREE.TrailRenderer.Shader.BaseFragmentVars = [
+
 	"varying vec4 vColor;",
-
 	"uniform sampler2D texture;",
 
 ].join( "\n" );
 
-THREE.TrailRenderer.Shader.VertexShader = [
+THREE.TrailRenderer.Shader.TexturedFragmentVars = [
 
-	THREE.TrailRenderer.Shader.VertexVars,
+	THREE.TrailRenderer.Shader.BaseFragmentVars,
+	"varying vec2 vUV;"
+
+].join( "\n" );
+
+
+THREE.TrailRenderer.Shader.VertexShaderCore = [
+
+	"float fraction = ( maxID - nodeID ) / ( maxID - minID );",
+	"vColor = ( 1.0 - fraction ) * headColor + fraction * tailColor;",
+	"vec4 realPosition = vec4( ( 1.0 - fraction ) * position.xyz + fraction * nodeCenter.xyz, 1.0 ); ", 
+
+].join( "\n" );
+
+THREE.TrailRenderer.Shader.BaseVertexShader = [
+
+	THREE.TrailRenderer.Shader.BaseVertexVars,
 
 	"void main() { ",
 
-		"vUV = uv; ",
-		"float fraction = ( maxID - nodeID ) / ( maxID - minID );",
-		"vColor = ( 1.0 - fraction ) * headColor + fraction * tailColor;",
-		"vec4 realPosition = vec4( ( 1.0 - fraction ) * position.xyz + fraction * nodeCenter.xyz, 1.0 ); ", 
+		THREE.TrailRenderer.Shader.VertexShaderCore,
 		"gl_Position = projectionMatrix * viewMatrix * realPosition;",
 
 	"}"
 
 ].join( "\n" );
 
-THREE.TrailRenderer.Shader.FragmentShader = [
+THREE.TrailRenderer.Shader.BaseFragmentShader = [
 
-	THREE.TrailRenderer.Shader.FragmentVars,
+	THREE.TrailRenderer.Shader.BaseFragmentVars,
+
+	"void main() { ",
+
+		"gl_FragColor = vColor;",
+
+	"}"
+
+].join( "\n" );
+
+THREE.TrailRenderer.Shader.TexturedVertexShader = [
+
+	THREE.TrailRenderer.Shader.TexturedVertexVars,
+
+	"void main() { ",
+
+		THREE.TrailRenderer.Shader.VertexShaderCore,
+		"vec2 cUV;",
+		//"cUV.s = fraction * 10.0;",
+		"cUV.s = fract( nodeID / trailLength ) * textureTileFactor.s;",
+		"cUV.t = ( nodeVertexID / verticesPerNode ) * textureTileFactor.t;",
+		"vUV = cUV; ",
+		"gl_Position = projectionMatrix * viewMatrix * realPosition;",
+
+	"}"
+
+].join( "\n" );
+
+THREE.TrailRenderer.Shader.TexturedFragmentShader = [
+
+	THREE.TrailRenderer.Shader.TexturedFragmentVars,
 
 	"void main() { ",
 
 	    "vec4 textureColor = texture2D( texture, vUV );",
-		//"gl_FragColor = vColor * textureColor;",
-		"gl_FragColor = vColor;",
+		"gl_FragColor = vColor * textureColor;",
 
 	"}"
 
@@ -101,14 +151,16 @@ THREE.TrailRenderer.createMaterial = function( vertexShader, fragmentShader, cus
 	customUniforms = customUniforms || {};
 
 	customUniforms.trailLength = { type: "f", value: null };
+	customUniforms.verticesPerNode = { type: "f", value: null };
 	customUniforms.minID = { type: "f", value: null };
 	customUniforms.maxID = { type: "f", value: null };
+	customUniforms.textureTileFactor = { type: "v2", value: null };
 
 	customUniforms.headColor = { type: "v4", value: new THREE.Vector4() };
 	customUniforms.tailColor = { type: "v4", value: new THREE.Vector4() };
 
-	vertexShader = vertexShader || THREE.TrailRenderer.Shader.VertexShader;
-	fragmentShader = fragmentShader || THREE.TrailRenderer.Shader.FragmentShader;
+	vertexShader = vertexShader || THREE.TrailRenderer.Shader.BaseVertexShader;
+	fragmentShader = fragmentShader || THREE.TrailRenderer.Shader.BaseFragmentShader;
 
 	return new THREE.ShaderMaterial(
 	{
@@ -129,6 +181,21 @@ THREE.TrailRenderer.createMaterial = function( vertexShader, fragmentShader, cus
 
 		side: THREE.DoubleSide
 	} );
+
+}
+
+THREE.TrailRenderer.createBaseMaterial = function( customUniforms ) {
+
+	return this.createMaterial( THREE.TrailRenderer.Shader.BaseVertexShader, THREE.TrailRenderer.Shader.BaseFragmentShader, customUniforms );
+
+}
+
+THREE.TrailRenderer.createTexturedMaterial = function( customUniforms ) {
+
+	customUniforms = {};
+	customUniforms.texture = { type: "t", value: null };
+
+	return this.createMaterial( THREE.TrailRenderer.Shader.TexturedVertexShader, THREE.TrailRenderer.Shader.TexturedFragmentShader, customUniforms );
 
 }
 
@@ -160,6 +227,8 @@ THREE.TrailRenderer.prototype.initialize = function( material, length, localHead
 		this.material.uniforms.trailLength.value = this.length;
 		this.material.uniforms.minID.value = 0;
 		this.material.uniforms.maxID.value = 0;
+		this.material.uniforms.verticesPerNode.value = this.VerticesPerNode;
+		this.material.uniforms.textureTileFactor.value = new THREE.Vector2( 1.0, 1.0 );
 
 		this.reset();
 
@@ -214,6 +283,7 @@ THREE.TrailRenderer.prototype.initializeGeometry = function() {
 	var geometry = new THREE.BufferGeometry();
 
 	var nodeIDs = new Float32Array( this.vertexCount );
+	var nodeVertexIDs = new Float32Array( this.vertexCount * this.VerticesPerNode );
 	var positions = new Float32Array( this.vertexCount * 3  );
 	var nodeCenters = new Float32Array( this.vertexCount * 3  );
 	var uvs = new Float32Array( this.vertexCount * 2  );
@@ -222,6 +292,10 @@ THREE.TrailRenderer.prototype.initializeGeometry = function() {
 	var nodeIDAttribute = new THREE.BufferAttribute( nodeIDs, 1 );
 	nodeIDAttribute.setDynamic( true );
 	geometry.addAttribute( 'nodeID', nodeIDAttribute );
+
+	var nodeVertexIDAttribute = new THREE.BufferAttribute( nodeVertexIDs, 1 );
+	nodeVertexIDAttribute.setDynamic( true );
+	geometry.addAttribute( 'nodeVertexID', nodeVertexIDAttribute );
 
 	var nodeCenterAttribute = new THREE.BufferAttribute( nodeCenters, 3 );
 	nodeCenterAttribute.setDynamic( true );
@@ -345,6 +419,7 @@ THREE.TrailRenderer.prototype.updateUniforms = function() {
 	}
 	this.material.uniforms.maxID.value = this.currentNodeID;
 	this.material.uniforms.trailLength.value = this.currentLength;
+	this.material.uniforms.verticesPerNode.value = this.VerticesPerNode;
 
 }
 
@@ -359,14 +434,6 @@ THREE.TrailRenderer.prototype.advance = function() {
 
 		this.targetObject.updateMatrixWorld();
 		tempMatrix4.copy( this.targetObject.matrixWorld );
-
-		/*orientationTangent.copy( THREE.TrailRenderer.LocalOrientationTangent );
-		position.copy( THREE.TrailRenderer.LocalHeadOrigin );
-		offset.setFromMatrixPosition( tempMatrix4 );
-		position.add( offset );
-		orientationTangent.applyMatrix4( tempMatrix4 );
-		orientationTangent.normalize();
-		this.advanceWithPositionAndOrientation( position, orientationTangent );*/
 
 		this.advanceWithTransform( tempMatrix4 );
 		
@@ -472,15 +539,18 @@ THREE.TrailRenderer.prototype.updateNodeID = function( nodeIndex, id ) {
 	this.nodeIDs[ nodeIndex ] = id;
 
 	var nodeIDs = this.geometry.getAttribute( 'nodeID' );
+	var nodeVertexIDs = this.geometry.getAttribute( 'nodeVertexID' );
 
 	for ( var i = 0; i < this.VerticesPerNode; i ++ ) {
 
 		var baseIndex = nodeIndex * this.VerticesPerNode + i ;
 		nodeIDs.array[ baseIndex ] = id;
+		nodeVertexIDs.array[ baseIndex ] = i;
 
 	}	
 
 	nodeIDs.needsUpdate = true;
+	nodeVertexIDs.needsUpdate = true;
 
 }
 
