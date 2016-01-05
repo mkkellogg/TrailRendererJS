@@ -28,7 +28,7 @@
 		}
 		#info a { color: #f00; font-weight: bold; text-decoration: underline; cursor: pointer }
 	</style>
-    <title>Three.js Particle System</title>
+    <title>Three.js Trail Renderer</title>
 </head>
 <body>
 
@@ -46,11 +46,19 @@
 		Textured : 2
 	} );
 
+	var TrailShapes = Object.freeze(
+	{
+		Plane : 1,
+		Star : 2,
+		Circle : 3
+	} );
+
 	var scene, gui, renderer, clock;
 	var camera, pointLight, ambientLight, controls, stats;
 	
 	var options;
-	var starPoints, circlePoints, trailTarget;
+	var starPoints, circlePoints, planePoints;
+	var trailTarget;
 	var trailHeadGeometry, trail, lastTrailUpdateTime, lastTrailResetTime;
 	var trailMaterial, baseTrailMaterial, texturedTrailMaterial;
 
@@ -64,6 +72,7 @@
 
 	function init() {
 
+		simulationPause = false;
 		clock = new THREE.Clock();
 		lastTrailUpdateTime = performance.now();
 		lastTrailResetTime = performance.now();
@@ -98,18 +107,24 @@
 	    	headRed : 1.0,
 	    	headGreen : 0.0,
 	    	headBlue : 0.0,
-	    	headAlpha : 1.0,
+	    	headAlpha : 0.75,
 
-	    	tailRed : 1.0,
+	    	tailRed : 0.0,
 	    	tailGreen : 1.0,
-	    	tailBlue : 0.0,
-	    	tailAlpha : 0.3,
+	    	tailBlue : 1.0,
+	    	tailAlpha : 0.35,
 
-	    	trailLength : 100,
-	    	trailType : TrailTypes.Basic,
+	    	trailLength : 300,
+	    	trailType : TrailTypes.Textured,
+	    	trailShape : TrailShapes.Plane,
 
-	    	textureTileFactorS : 1.0,
-	    	textureTileFactorT : 1.0
+	    	textureTileFactorS : 10.0,
+	    	textureTileFactorT : 0.8,
+
+	    	dragTexture : false,
+	    	depthWrite : false,
+
+	    	pauseSim : false
 	    };
 
 	}
@@ -117,6 +132,29 @@
 	function initGUI() {
 
 		gui = new dat.GUI();  
+
+		gui.add( options, 'trailType', { Basic : TrailTypes.Basic, Textured : TrailTypes.Textured } ).name( "Trail type" ).onChange( function() {
+
+				options.trailType = parseInt( options.trailType );
+				updateTrailType();
+
+			} );
+
+		gui.add( options, 'trailShape', 
+			{ 
+				Plane : TrailShapes.Plane, 
+				Star : TrailShapes.Star, 
+				Circle : TrailShapes.Circle 
+			} ).name( "Trail shape" ).onChange( function() {
+
+				options.trailShape = parseInt( options.trailShape );
+				updateTrailShape();
+
+			} );
+
+		gui.add(options, "trailLength", 0, 1000).name( "Trail length" ).onChange( updateTrailLength );	
+		gui.add( options, 'depthWrite' ).name( "Depth write" ).onChange( updateTrailDepthWrite );
+		gui.add( options, 'pauseSim' ).name( "Pause simulation" );
 		
 		var headColor = gui.addFolder( "Head color" );
 		headColor.add( options, "headRed", 0.0, 1.0, 0.025 ).name( "Red" ).onChange( updateTrailColors );
@@ -130,17 +168,10 @@
 		tailColor.add( options, "tailBlue", 0.0, 1.0, 0.025 ).name( "Blue" ).onChange( updateTrailColors );
 		tailColor.add( options, "tailAlpha", 0.0, 1.0, 0.025 ).name( "Alpha" ).onChange( updateTrailColors );
 
-		gui.add(options, "textureTileFactorS", 0, 25).name( "Texture Tile S" ).onChange( updateTrailTextureTileSize );
-		gui.add(options, "textureTileFactorT", 0, 25).name( "Texture Tile T" ).onChange( updateTrailTextureTileSize );
-
-		gui.add(options, "trailLength", 0, 1000).name( "Trail Length" ).onChange( updateTrailLength );
-
-		gui.add( options, 'trailType', { Basic : TrailTypes.Basic, Textured : TrailTypes.Textured } ).name( "Trail type" ).onChange( function() {
-
-				options.trailType = parseInt( options.trailType );
-				updateTrailType();
-
-			} );
+		var textureOptions = gui.addFolder( "Texture options" );
+		textureOptions.add( options, "textureTileFactorS", 0, 25).name( "Texture Tile S" ).onChange( updateTrailTextureTileSize );
+		textureOptions.add( options, "textureTileFactorT", 0, 25).name( "Texture Tile T" ).onChange( updateTrailTextureTileSize );
+		textureOptions.add( options, 'dragTexture' ).name( "Drag Texture" ).onChange( updateTrailTextureDrag );
 
 		gui.domElement.parentNode.style.zIndex = 100;
 
@@ -157,8 +188,7 @@
 		renderer = new THREE.WebGLRenderer();
 		renderer.setSize( screenWidth, screenHeight );
 		renderer.setClearColor( 0x000000 );
-		renderer.shadowMap.enabled = true;
-		renderer.shadowMap.type = THREE.BasicShadowMap;
+		renderer.sortObjects = false;
 		rendererContainer = document.getElementById( 'renderingContainer' );
 		rendererContainer.appendChild( renderer.domElement );
 
@@ -197,6 +227,9 @@
 	}
 
 	function initTrailHeadGeometries() {
+
+		planePoints = [];
+		planePoints.push( new THREE.Vector3( -14.0, 4.0, 0.0 ), new THREE.Vector3( 0.0, 4.0, 0.0 ), new THREE.Vector3( 14.0, 4.0, 0.0 ) );
 
 		circlePoints = [];
 		var twoPI = Math.PI * 2;
@@ -263,7 +296,7 @@
 		baseTrailMaterial = THREE.TrailRenderer.createBaseMaterial();		
 
 		var textureLoader = new THREE.TextureLoader();
-		textureLoader.load( "textures/stars.png", function( tex ) {
+		textureLoader.load( "textures/sparkle4.jpg", function( tex ) {
 
 			tex.wrapS = THREE.RepeatWrapping;
 			tex.wrapT = THREE.RepeatWrapping;
@@ -283,7 +316,9 @@
 
 		function continueInitialization() {;
 
-			updateTrailType();
+			setTrailShapeFromOptions();
+			setTrailTypeFromOptions();
+			initializeTrail();
 
 		}
 		
@@ -291,26 +326,71 @@
 
 	function updateTrailLength() {
 
-		reinitializeTrail();
+		initializeTrail();
 
 	}
 
-	function updateTrailType() {
+	function setTrailTypeFromOptions() {
 
 		switch ( options.trailType ) {
 
 			case TrailTypes.Basic:
 
-				setTrailGeometryAndMaterial( starPoints, baseTrailMaterial );
+				trailMaterial = baseTrailMaterial;
 
 			break;
 			case TrailTypes.Textured:
 
-				setTrailGeometryAndMaterial( circlePoints, texturedTrailMaterial );
+				trailMaterial = texturedTrailMaterial;
+				
 
 			break;
 
 		}
+
+	}
+
+	function updateTrailType() {
+
+		setTrailTypeFromOptions();
+		initializeTrail();
+
+	}
+
+	function setTrailShapeFromOptions() {
+
+		switch ( options.trailShape ) {
+
+			case TrailShapes.Plane:
+
+				trailHeadGeometry = planePoints;
+
+			break;
+			case TrailShapes.Star:
+
+				trailHeadGeometry = starPoints;
+
+			break;
+			case TrailShapes.Circle:
+
+				trailHeadGeometry = circlePoints;
+
+			break;
+
+		}
+
+	}
+
+	function updateTrailShape() {
+
+		setTrailShapeFromOptions();
+		initializeTrail();
+
+	}
+
+	function updateTrailTextureDrag() {
+
+		initializeTrail();
 
 	}
 
@@ -324,6 +404,12 @@
 
 		trailMaterial.uniforms.headColor.value.set( options.headRed, options.headGreen, options.headBlue, options.headAlpha );
 		trailMaterial.uniforms.tailColor.value.set( options.tailRed, options.tailGreen, options.tailBlue, options.tailAlpha );
+
+	}
+
+	function updateTrailDepthWrite() {
+
+		trailMaterial.depthWrite = options.depthWrite;
 
 	}
 
@@ -345,15 +431,6 @@
 		var lastDirection= new THREE.Vector3();
 
 		var lastRotationMatrix = new THREE.Matrix4();
-
-		function getMatrix3FromMatrix4( matrix3, matrix4) {
-
-			var e = matrix4.elements;
-			matrix3.set( e[0], e[1], e[2],
-						 e[4], e[5], e[6],
-						 e[8], e[9], e[10] );
-
-		}
 
 		return function updateTrailTarget( time ) {
 
@@ -416,33 +493,12 @@
 
 	}();
 
-	function setTrailHeadGeometry( geometry ) {
+	function initializeTrail() {
 
-		trailHeadGeometry = [];
-
-		for( var i = 0; i < geometry.length; i++ ) {
-
-			var vector = new THREE.Vector3();
-			vector.copy( geometry[ i ] );
-			trailHeadGeometry[ i ] = vector;
-
-		}
-
-	}
-
-	function setTrailGeometryAndMaterial( geometry, material ){
-
-		setTrailHeadGeometry( geometry );
-		trailMaterial = material;
-		reinitializeTrail();
-
-	}
-
-	function reinitializeTrail() {
-
-		trail.initialize( trailMaterial, Math.floor(options.trailLength), 0, trailHeadGeometry, trailTarget );
+		trail.initialize( trailMaterial, Math.floor(options.trailLength), options.dragTexture ? 1.0 : 0.0, 0, trailHeadGeometry, trailTarget );
 		updateTrailColors();
 		updateTrailTextureTileSize();
+		updateTrailDepthWrite();
 		trail.activate();
 
 	}
@@ -511,7 +567,7 @@
 
 		var time = performance.now();
 
-		updateTrailTarget( time );
+		if ( ! options.pauseSim )updateTrailTarget( time );
 
 		controls.update();
 		stats.update();

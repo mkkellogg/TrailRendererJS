@@ -32,7 +32,7 @@ THREE.TrailRenderer = function( scene, orientToMovement ) {
 }
 
 THREE.TrailRenderer.prototype = Object.create( THREE.Object3D.prototype );
-THREE.TrailRenderer.constructor = THREE.TrailRenderer;
+THREE.TrailRenderer.prototype.constructor = THREE.TrailRenderer;
 
 THREE.TrailRenderer.MaxHeadVertices = 128;
 THREE.TrailRenderer.LocalOrientationTangent = new THREE.Vector3( 1, 0, 0 );
@@ -50,6 +50,7 @@ THREE.TrailRenderer.Shader.BaseVertexVars = [
 	"uniform float minID;",
 	"uniform float maxID;",
 	"uniform float trailLength;",
+	"uniform float maxTrailLength;",
 	"uniform float verticesPerNode;",
 	"uniform vec2 textureTileFactor;",
 
@@ -63,7 +64,8 @@ THREE.TrailRenderer.Shader.BaseVertexVars = [
 THREE.TrailRenderer.Shader.TexturedVertexVars = [
 
 	THREE.TrailRenderer.Shader.BaseVertexVars, 
-	"varying vec2 vUV;"
+	"varying vec2 vUV;",
+	"uniform float dragTexture;",
 
 ].join( "\n" );
 
@@ -122,11 +124,16 @@ THREE.TrailRenderer.Shader.TexturedVertexShader = [
 	"void main() { ",
 
 		THREE.TrailRenderer.Shader.VertexShaderCore,
-		"vec2 cUV;",
-		//"cUV.s = fraction * 10.0;",
-		"cUV.s = fract( nodeID / trailLength ) * textureTileFactor.s;",
-		"cUV.t = ( nodeVertexID / verticesPerNode ) * textureTileFactor.t;",
-		"vUV = cUV; ",
+		"float s = 0.0;",
+		"float t = 0.0;",
+		"if ( dragTexture == 1.0 ) { ",
+		"   s = fraction *  textureTileFactor.s; ",
+		" 	t = ( nodeVertexID / verticesPerNode ) * textureTileFactor.t;",
+		"} else { ",
+		"	s = nodeID / maxTrailLength * textureTileFactor.s;",
+		" 	t = ( nodeVertexID / verticesPerNode ) * textureTileFactor.t;",
+		"}",
+		"vUV = vec2( s, t ); ",
 		"gl_Position = projectionMatrix * viewMatrix * realPosition;",
 
 	"}"
@@ -154,6 +161,8 @@ THREE.TrailRenderer.createMaterial = function( vertexShader, fragmentShader, cus
 	customUniforms.verticesPerNode = { type: "f", value: null };
 	customUniforms.minID = { type: "f", value: null };
 	customUniforms.maxID = { type: "f", value: null };
+	customUniforms.dragTexture = { type: "f", value: null };
+	customUniforms.maxTrailLength = { type: "f", value: null };
 	customUniforms.textureTileFactor = { type: "v2", value: null };
 
 	customUniforms.headColor = { type: "v4", value: new THREE.Vector4() };
@@ -199,12 +208,13 @@ THREE.TrailRenderer.createTexturedMaterial = function( customUniforms ) {
 
 }
 
-THREE.TrailRenderer.prototype.initialize = function( material, length, localHeadWidth, localHeadGeometry, targetObject ) {
+THREE.TrailRenderer.prototype.initialize = function( material, length, dragTexture, localHeadWidth, localHeadGeometry, targetObject ) {
 
 		this.deactivate();
 		this.destroyMesh();
 
 		this.length = ( length > 0 ) ? length + 1 : 0;
+		this.dragTexture = ( ! dragTexture ) ? 0 : 1;
 		this.targetObject = targetObject;
 
 		this.initializeLocalHeadGeometry( localHeadWidth, localHeadGeometry );
@@ -224,9 +234,11 @@ THREE.TrailRenderer.prototype.initialize = function( material, length, localHead
 		this.initializeGeometry();
 		this.initializeMesh();
 
-		this.material.uniforms.trailLength.value = this.length;
+		this.material.uniforms.trailLength.value = 0;
 		this.material.uniforms.minID.value = 0;
 		this.material.uniforms.maxID.value = 0;
+		this.material.uniforms.dragTexture.value = this.dragTexture;
+		this.material.uniforms.maxTrailLength.value = this.length;
 		this.material.uniforms.verticesPerNode.value = this.VerticesPerNode;
 		this.material.uniforms.textureTileFactor.value = new THREE.Vector2( 1.0, 1.0 );
 
@@ -419,6 +431,7 @@ THREE.TrailRenderer.prototype.updateUniforms = function() {
 	}
 	this.material.uniforms.maxID.value = this.currentNodeID;
 	this.material.uniforms.trailLength.value = this.currentLength;
+	this.material.uniforms.maxTrailLength.value = this.length;
 	this.material.uniforms.verticesPerNode.value = this.VerticesPerNode;
 
 }
