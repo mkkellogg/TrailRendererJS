@@ -38,6 +38,11 @@ THREE.TrailRenderer.MaxHeadVertices = 128;
 THREE.TrailRenderer.LocalOrientationTangent = new THREE.Vector3( 1, 0, 0 );
 THREE.TrailRenderer.LocalOrientationDirection = new THREE.Vector3( 0, 0, -1 );
 THREE.TrailRenderer.LocalHeadOrigin = new THREE.Vector3( 0, 0, 0 );
+THREE.TrailRenderer.PositionComponentCount = 3;
+THREE.TrailRenderer.UVComponentCount = 2;
+THREE.TrailRenderer.IndicesPerFace = 3;
+THREE.TrailRenderer.FacesPerQuad = 2;
+
 
 THREE.TrailRenderer.Shader = {};
 
@@ -296,10 +301,10 @@ THREE.TrailRenderer.prototype.initializeGeometry = function() {
 
 	var nodeIDs = new Float32Array( this.vertexCount );
 	var nodeVertexIDs = new Float32Array( this.vertexCount * this.VerticesPerNode );
-	var positions = new Float32Array( this.vertexCount * 3  );
-	var nodeCenters = new Float32Array( this.vertexCount * 3  );
-	var uvs = new Float32Array( this.vertexCount * 2  );
-	var indices = new Uint32Array( this.faceCount * 3 );
+	var positions = new Float32Array( this.vertexCount * THREE.TrailRenderer.PositionComponentCount );
+	var nodeCenters = new Float32Array( this.vertexCount * THREE.TrailRenderer.PositionComponentCount );
+	var uvs = new Float32Array( this.vertexCount * THREE.TrailRenderer.UVComponentCount );
+	var indices = new Uint32Array( this.faceCount * THREE.TrailRenderer.IndicesPerFace );
 
 	var nodeIDAttribute = new THREE.BufferAttribute( nodeIDs, 1 );
 	nodeIDAttribute.setDynamic( true );
@@ -309,15 +314,15 @@ THREE.TrailRenderer.prototype.initializeGeometry = function() {
 	nodeVertexIDAttribute.setDynamic( true );
 	geometry.addAttribute( 'nodeVertexID', nodeVertexIDAttribute );
 
-	var nodeCenterAttribute = new THREE.BufferAttribute( nodeCenters, 3 );
+	var nodeCenterAttribute = new THREE.BufferAttribute( nodeCenters, THREE.TrailRenderer.PositionComponentCount );
 	nodeCenterAttribute.setDynamic( true );
 	geometry.addAttribute( 'nodeCenter', nodeCenterAttribute );
 
-	var positionAttribute = new THREE.BufferAttribute( positions, 3 );
+	var positionAttribute = new THREE.BufferAttribute( positions, THREE.TrailRenderer.PositionComponentCount );
 	positionAttribute.setDynamic( true );
 	geometry.addAttribute( 'position', positionAttribute );
 
-	var uvAttribute = new THREE.BufferAttribute( uvs, 2 );
+	var uvAttribute = new THREE.BufferAttribute( uvs, THREE.TrailRenderer.UVComponentCount );
 	uvAttribute.setDynamic( true );
 	geometry.addAttribute( 'uv', uvAttribute );
 
@@ -487,14 +492,17 @@ THREE.TrailRenderer.prototype.advanceGeometry = function() {
 
 		if ( this.currentLength >= 1 ) {
 
-			this.connectNodes( this.currentEnd , nextIndex );
+			var connectRange = this.connectNodes( this.currentEnd , nextIndex );
+			var disconnectRange = null;
 
 			if( this.currentLength >= this.length ) {
 
 				var disconnectIndex  = this.currentEnd + 1  >= this.length ? 0 : this.currentEnd + 1;
-				this.disconnectNodes( disconnectIndex );
+				disconnectRange = this.disconnectNodes( disconnectIndex );
 
 			}
+
+			this.updateIndexRangesForConnectAndDisconnect( connectRange, disconnectRange );
 
 		}
 
@@ -565,6 +573,12 @@ THREE.TrailRenderer.prototype.updateNodeID = function( nodeIndex, id ) {
 	nodeIDs.needsUpdate = true;
 	nodeVertexIDs.needsUpdate = true;
 
+	nodeIDs.updateRange.offset = nodeIndex * this.VerticesPerNode; 
+	nodeIDs.updateRange.count = this.VerticesPerNode;
+
+	nodeVertexIDs.updateRange.offset = nodeIndex * this.VerticesPerNode;
+	nodeVertexIDs.updateRange.count = this.VerticesPerNode;
+
 }
 
 THREE.TrailRenderer.prototype.updateNodeCenter = function( nodeIndex, nodeCenter ) { 
@@ -586,6 +600,9 @@ THREE.TrailRenderer.prototype.updateNodeCenter = function( nodeIndex, nodeCenter
 	}	
 
 	nodeCenters.needsUpdate = true;
+
+	nodeCenters.updateRange.offset = nodeIndex * this.VerticesPerNode * THREE.TrailRenderer.PositionComponentCount; 
+	nodeCenters.updateRange.count = this.VerticesPerNode * THREE.TrailRenderer.PositionComponentCount; 
 
 }
 
@@ -623,7 +640,7 @@ THREE.TrailRenderer.prototype.updateNodePositionsFromOrientationTangent = functi
 
 		for ( var i = 0; i <  this.localHeadGeometry.length; i ++ ) {
 
-			var positionIndex = ( ( this.VerticesPerNode * nodeIndex ) + i ) * 3;
+			var positionIndex = ( ( this.VerticesPerNode * nodeIndex ) + i ) * THREE.TrailRenderer.PositionComponentCount;
 			var transformedHeadVertex = tempLocalHeadGeometry[ i ];
 
 			positions.array[ positionIndex ] = transformedHeadVertex.x;
@@ -633,6 +650,7 @@ THREE.TrailRenderer.prototype.updateNodePositionsFromOrientationTangent = functi
 		}
 
 		positions.needsUpdate = true;
+
 	}
 
 }();
@@ -723,7 +741,7 @@ THREE.TrailRenderer.prototype.updateNodePositionsFromTransformMatrix = function(
 	
 		for ( var i = 0; i < this.localHeadGeometry.length; i ++ ) {
 
-			var positionIndex = ( ( this.VerticesPerNode * nodeIndex ) + i ) * 3;
+			var positionIndex = ( ( this.VerticesPerNode * nodeIndex ) + i ) * THREE.TrailRenderer.PositionComponentCount;
 			var transformedHeadVertex = tempLocalHeadGeometry[ i ];
 
 			positions.array[ positionIndex ] = transformedHeadVertex.x;
@@ -733,6 +751,9 @@ THREE.TrailRenderer.prototype.updateNodePositionsFromTransformMatrix = function(
 		}
 		
 		positions.needsUpdate = true;
+
+		positions.updateRange.offset = nodeIndex * this.VerticesPerNode * THREE.TrailRenderer.PositionComponentCount; 
+		positions.updateRange.count = this.VerticesPerNode * THREE.TrailRenderer.PositionComponentCount; 
 	}
 
 }();
@@ -746,7 +767,7 @@ THREE.TrailRenderer.prototype.connectNodes = function( srcNodeIndex, destNodeInd
 		var srcVertexIndex = ( this.VerticesPerNode * srcNodeIndex ) + i;
 		var destVertexIndex = ( this.VerticesPerNode * destNodeIndex ) + i;
 
-		var faceIndex = ( ( srcNodeIndex * this.FacesPerNode ) + ( i * 2 ) ) * 3;
+		var faceIndex = ( ( srcNodeIndex * this.FacesPerNode ) + ( i * THREE.TrailRenderer.FacesPerQuad  ) ) * THREE.TrailRenderer.IndicesPerFace;
 
 		indices.array[ faceIndex ] = srcVertexIndex;
 		indices.array[ faceIndex + 1 ] = destVertexIndex;
@@ -760,6 +781,13 @@ THREE.TrailRenderer.prototype.connectNodes = function( srcNodeIndex, destNodeInd
 
 	indices.needsUpdate = true;
 
+	return {
+
+		"attribute" : indices,
+		"offset" : srcNodeIndex * this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace,
+		"count" : this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace
+
+	};
 }
 
 THREE.TrailRenderer.prototype.disconnectNodes = function( srcNodeIndex ) {
@@ -770,7 +798,7 @@ THREE.TrailRenderer.prototype.disconnectNodes = function( srcNodeIndex ) {
 
 		var srcVertexIndex = ( this.VerticesPerNode * srcNodeIndex ) + i;
 
-		var faceIndex = ( ( srcNodeIndex * this.FacesPerNode ) + ( i * 2 ) ) * 3;
+		var faceIndex = ( ( srcNodeIndex * this.FacesPerNode ) + ( i * THREE.TrailRenderer.FacesPerQuad ) ) * THREE.TrailRenderer.IndicesPerFace;
 
 		indices.array[ faceIndex ] = 0;
 		indices.array[ faceIndex + 1 ] = 0;
@@ -783,6 +811,41 @@ THREE.TrailRenderer.prototype.disconnectNodes = function( srcNodeIndex ) {
 	}
 
 	indices.needsUpdate = true;
+
+	return {
+
+		"attribute" : indices,
+		"offset" : srcNodeIndex * this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace,
+		"count" : this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace
+		
+	};
+
+}
+
+THREE.TrailRenderer.prototype.updateIndexRangesForConnectAndDisconnect = function( connectRange, disconnectRange ) {
+	
+	var indexAttribute = connectRange.attribute;
+
+	if ( ! disconnectRange ) {
+
+		indexAttribute.offset = connectRange.offset;
+		indexAttribute.count = connectRange.count;
+
+
+	} else {
+
+		if ( connectRange.offset + connectRange.count == disconnectRange.offset ) {
+
+			indexAttribute.offset = connectRange.offset;
+			indexAttribute.count = connectRange.count;
+
+		} else {
+
+			indexAttribute.offset = 0;
+			indexAttribute.count = - 1;
+
+		}
+	}
 
 }
 
