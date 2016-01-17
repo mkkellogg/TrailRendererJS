@@ -349,6 +349,7 @@ THREE.TrailRenderer.prototype.zeroVertices = function( ) {
 	}
 
 	positions.needsUpdate = true;
+	positions.updateRange.count = - 1;
 
 }
 
@@ -367,6 +368,7 @@ THREE.TrailRenderer.prototype.zeroIndices = function( ) {
 	}
 
 	indices.needsUpdate = true;
+	indices.updateRange.count = - 1;
 
 }
 
@@ -383,6 +385,7 @@ THREE.TrailRenderer.prototype.formInitialFaces = function() {
 	}
 
 	indices.needsUpdate = true;
+	indices.updateRange.count = - 1;
 
 }
 
@@ -780,6 +783,7 @@ THREE.TrailRenderer.prototype.connectNodes = function( srcNodeIndex, destNodeInd
 	}
 
 	indices.needsUpdate = true;
+	indices.updateRange.count = - 1;
 
 	return {
 
@@ -811,6 +815,7 @@ THREE.TrailRenderer.prototype.disconnectNodes = function( srcNodeIndex ) {
 	}
 
 	indices.needsUpdate = true;
+	indices.updateRange.count = - 1;
 
 	return {
 
