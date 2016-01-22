@@ -761,71 +761,91 @@ THREE.TrailRenderer.prototype.updateNodePositionsFromTransformMatrix = function(
 
 }();
 
-THREE.TrailRenderer.prototype.connectNodes = function( srcNodeIndex, destNodeIndex ) {
+THREE.TrailRenderer.prototype.connectNodes = function() {
 
-	var indices = this.geometry.getIndex();
+	var returnObj = {
 
-	for ( var i = 0; i < this.localHeadGeometry.length - 1; i ++ ) {
+			"attribute" : null,
+			"offset" : 0,
+			"count" : - 1
 
-		var srcVertexIndex = ( this.VerticesPerNode * srcNodeIndex ) + i;
-		var destVertexIndex = ( this.VerticesPerNode * destNodeIndex ) + i;
+		};
 
-		var faceIndex = ( ( srcNodeIndex * this.FacesPerNode ) + ( i * THREE.TrailRenderer.FacesPerQuad  ) ) * THREE.TrailRenderer.IndicesPerFace;
+	return function connectNodes( srcNodeIndex, destNodeIndex ) {
 
-		indices.array[ faceIndex ] = srcVertexIndex;
-		indices.array[ faceIndex + 1 ] = destVertexIndex;
-		indices.array[ faceIndex + 2 ] = srcVertexIndex + 1;
+		var indices = this.geometry.getIndex();
 
-		indices.array[ faceIndex + 3 ] = destVertexIndex;
-		indices.array[ faceIndex + 4 ] = destVertexIndex + 1;
-		indices.array[ faceIndex + 5 ] = srcVertexIndex + 1;
+		for ( var i = 0; i < this.localHeadGeometry.length - 1; i ++ ) {
+
+			var srcVertexIndex = ( this.VerticesPerNode * srcNodeIndex ) + i;
+			var destVertexIndex = ( this.VerticesPerNode * destNodeIndex ) + i;
+
+			var faceIndex = ( ( srcNodeIndex * this.FacesPerNode ) + ( i * THREE.TrailRenderer.FacesPerQuad  ) ) * THREE.TrailRenderer.IndicesPerFace;
+
+			indices.array[ faceIndex ] = srcVertexIndex;
+			indices.array[ faceIndex + 1 ] = destVertexIndex;
+			indices.array[ faceIndex + 2 ] = srcVertexIndex + 1;
+
+			indices.array[ faceIndex + 3 ] = destVertexIndex;
+			indices.array[ faceIndex + 4 ] = destVertexIndex + 1;
+			indices.array[ faceIndex + 5 ] = srcVertexIndex + 1;
+
+		}
+
+		indices.needsUpdate = true;
+		indices.updateRange.count = - 1;
+
+		returnObj.attribute = indices;
+		returnObj.offset =  srcNodeIndex * this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace;
+		returnObj.count = this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace;
+
+		return returnObj;
 
 	}
-
-	indices.needsUpdate = true;
-	indices.updateRange.count = - 1;
-
-	return {
-
-		"attribute" : indices,
-		"offset" : srcNodeIndex * this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace,
-		"count" : this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace
-
-	};
-}
+}();
 
 THREE.TrailRenderer.prototype.disconnectNodes = function( srcNodeIndex ) {
 
-	var indices = this.geometry.getIndex();
+	var returnObj = {
 
-	for ( var i = 0; i < this.localHeadGeometry.length - 1; i ++ ) {
+			"attribute" : null,
+			"offset" : 0,
+			"count" : - 1
 
-		var srcVertexIndex = ( this.VerticesPerNode * srcNodeIndex ) + i;
+		};
 
-		var faceIndex = ( ( srcNodeIndex * this.FacesPerNode ) + ( i * THREE.TrailRenderer.FacesPerQuad ) ) * THREE.TrailRenderer.IndicesPerFace;
+	return function disconnectNodes( srcNodeIndex ) {
 
-		indices.array[ faceIndex ] = 0;
-		indices.array[ faceIndex + 1 ] = 0;
-		indices.array[ faceIndex + 2 ] = 0;
+		var indices = this.geometry.getIndex();
 
-		indices.array[ faceIndex + 3 ] = 0;
-		indices.array[ faceIndex + 4 ] = 0;
-		indices.array[ faceIndex + 5 ] = 0;
+		for ( var i = 0; i < this.localHeadGeometry.length - 1; i ++ ) {
+
+			var srcVertexIndex = ( this.VerticesPerNode * srcNodeIndex ) + i;
+
+			var faceIndex = ( ( srcNodeIndex * this.FacesPerNode ) + ( i * THREE.TrailRenderer.FacesPerQuad ) ) * THREE.TrailRenderer.IndicesPerFace;
+
+			indices.array[ faceIndex ] = 0;
+			indices.array[ faceIndex + 1 ] = 0;
+			indices.array[ faceIndex + 2 ] = 0;
+
+			indices.array[ faceIndex + 3 ] = 0;
+			indices.array[ faceIndex + 4 ] = 0;
+			indices.array[ faceIndex + 5 ] = 0;
+
+		}
+
+		indices.needsUpdate = true;
+		indices.updateRange.count = - 1;
+
+		returnObj.attribute = indices;
+		returnObj.offset = srcNodeIndex * this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace;
+		returnObj.count = this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace;
+
+		return returnObj;
 
 	}
 
-	indices.needsUpdate = true;
-	indices.updateRange.count = - 1;
-
-	return {
-
-		"attribute" : indices,
-		"offset" : srcNodeIndex * this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace,
-		"count" : this.FacesPerNode * THREE.TrailRenderer.IndicesPerFace
-		
-	};
-
-}
+}();
 
 THREE.TrailRenderer.prototype.updateIndexRangesForConnectAndDisconnect = function( connectRange, disconnectRange ) {
 	
