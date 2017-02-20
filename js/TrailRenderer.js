@@ -505,8 +505,6 @@ THREE.TrailRenderer.prototype.advanceGeometry = function() {
 
 			}
 
-			this.updateIndexRangesForConnectAndDisconnect( connectRange, disconnectRange );
-
 		}
 
 		if( this.currentLength < this.length ) {
@@ -846,33 +844,6 @@ THREE.TrailRenderer.prototype.disconnectNodes = function( srcNodeIndex ) {
 	}
 
 }();
-
-THREE.TrailRenderer.prototype.updateIndexRangesForConnectAndDisconnect = function( connectRange, disconnectRange ) {
-	
-	var indexAttribute = connectRange.attribute;
-
-	if ( ! disconnectRange ) {
-
-		indexAttribute.offset = connectRange.offset;
-		indexAttribute.count = connectRange.count;
-
-
-	} else {
-
-		if ( connectRange.offset + connectRange.count == disconnectRange.offset ) {
-
-			indexAttribute.offset = connectRange.offset;
-			indexAttribute.count = connectRange.count;
-
-		} else {
-
-			indexAttribute.offset = 0;
-			indexAttribute.count = - 1;
-
-		}
-	}
-
-}
 
 THREE.TrailRenderer.prototype.deactivate = function() {
 

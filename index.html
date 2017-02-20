@@ -3,12 +3,11 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 
-    <script src="../three.js/build/three.js"></script>
-	<script src="../three.js/examples/js/Detector.js"></script>
-	<script src="../three.js/examples/js/libs/stats.min.js"></script>
-	<script src="../three.js/examples/js/controls/OrbitControls.js"></script>	
-	<script src="../three.js/examples/js/loaders/OBJLoader.js"></script>
-	<script src='../three.js/examples/js/libs/dat.gui.min.js'></script>
+    <script src="js//three.min.js"></script>
+	<script src="js/Detector.js"></script>
+	<script src="js/libs/stats.min.js"></script>
+	<script src="js/controls/OrbitControls.js"></script>	
+	<script src='js/libs/dat.gui.min.js'></script>
 	<script src="js/TrailRenderer.js"></script>
     <style>
 		body {
@@ -201,14 +200,6 @@
 
 		pointLight = new THREE.PointLight( 0xffffff, 2, 1000, 1 );
 		pointLight.position.set( 0, 40, 0 );
-		pointLight.castShadow = true;
-		pointLight.shadowCameraNear = 1;
-		pointLight.shadowCameraFar = 1000;
-		pointLight.shadowDarkness = .8;
-		// pointLight.shadowCameraVisible = true;
-		pointLight.shadowMapWidth = 4096;
-		pointLight.shadowMapHeight = 2048;
-		pointLight.shadowBias = - 0.5;
 		scene.add( pointLight );
 
 	}
