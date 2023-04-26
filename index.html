@@ -3,7 +3,7 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 
-    <script src="js//three.min.js"></script>
+    <script src="js/three.min.js"></script>
 	<script src="js/Detector.js"></script>
 	<script src="js/libs/stats.min.js"></script>
 	<script src="js/controls/OrbitControls.js"></script>	
@@ -268,13 +268,14 @@
 			color: 0xa0adaf,
 			shininess: 10,
 			specular: 0x111111,
-			shading: THREE.SmoothShading
+			flatShading: false
 		} );
 
 		trailTarget = new THREE.Mesh( starGeometry, trailTargetMaterial );
 		trailTarget.position.set( 0, 0, 0 );
 		trailTarget.scale.multiplyScalar( 1 );
 		trailTarget.receiveShadow = false;
+		trailTarget.matrixAutoUpdate = false;
 
 		scene.add( trailTarget );
 
@@ -282,9 +283,9 @@
 
 	function initTrailRenderers( callback ) {
 
-		trail = new THREE.TrailRenderer( scene, false );	
+		trail = new TrailRenderer( scene, false );	
 
-		baseTrailMaterial = THREE.TrailRenderer.createBaseMaterial();		
+		baseTrailMaterial = TrailRenderer.createBaseMaterial();		
 
 		var textureLoader = new THREE.TextureLoader();
 		textureLoader.load( "textures/sparkle4.jpg", function( tex ) {
@@ -292,8 +293,8 @@
 			tex.wrapS = THREE.RepeatWrapping;
 			tex.wrapT = THREE.RepeatWrapping;
 
-		    texturedTrailMaterial = THREE.TrailRenderer.createTexturedMaterial();
-			texturedTrailMaterial.uniforms.texture.value = tex;
+		    texturedTrailMaterial = TrailRenderer.createTexturedMaterial();
+			texturedTrailMaterial.uniforms.trailTexture.value = tex;
 
 			continueInitialization();
 
@@ -477,7 +478,7 @@
 			tempTranslationMatrix.multiply( tempRotationMatrix );  
 
 			trailTarget.matrix.identity();
-			trailTarget.applyMatrix( tempTranslationMatrix );
+			trailTarget.applyMatrix4( tempTranslationMatrix );
 			trailTarget.updateMatrixWorld();
 
 		}
@@ -515,7 +516,7 @@
 
 	function initControls() {
 
-		controls = new THREE.OrbitControls( camera, renderer.domElement );
+		controls = new OrbitControls( camera, renderer.domElement );
 		controls.target.set( 0, 0, 0 );
 		controls.update();
 

@@ -20,10 +20,10 @@ trailHeadGeometry.push(
 );
 
 // create the trail renderer object
-var trail = new THREE.TrailRenderer( scene, false );
+var trail = new TrailRenderer( scene, false );
 
 // create material for the trail renderer
-var trailMaterial = THREE.TrailRenderer.createBaseMaterial();	
+var trailMaterial = TrailRenderer.createBaseMaterial();	
 
 // specify length of trail
 var trailLength = 150;
