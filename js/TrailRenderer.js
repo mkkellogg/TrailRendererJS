@@ -125,21 +125,27 @@ class TrailRenderer extends THREE.Object3D {
 		var indices = new Uint32Array( this.faceCount * TrailRenderer.IndicesPerFace );
 
 		var nodeIDAttribute = new THREE.BufferAttribute( nodeIDs, 1 );
+		nodeIDAttribute.dynamic = true;
 		geometry.setAttribute( 'nodeID', nodeIDAttribute );
 
 		var nodeVertexIDAttribute = new THREE.BufferAttribute( nodeVertexIDs, 1 );
+		nodeVertexIDAttribute.dynamic = true;
 		geometry.setAttribute( 'nodeVertexID', nodeVertexIDAttribute );
 
 		var nodeCenterAttribute = new THREE.BufferAttribute( nodeCenters, TrailRenderer.PositionComponentCount );
+		nodeCenterAttribute.dynamic = true;
 		geometry.setAttribute( 'nodeCenter', nodeCenterAttribute );
 
 		var positionAttribute = new THREE.BufferAttribute( positions, TrailRenderer.PositionComponentCount );
+		positionAttribute.dynamic = true;
 		geometry.setAttribute( 'position', positionAttribute );
 
 		var uvAttribute = new THREE.BufferAttribute( uvs, TrailRenderer.UVComponentCount );
+		uvAttribute.dynamic = true;
 		geometry.setAttribute( 'uv', uvAttribute );
 
 		var indexAttribute = new THREE.BufferAttribute( indices, 1 );
+		indexAttribute.dynamic = true;
 		geometry.setIndex( indexAttribute );
 
 		this.geometry = geometry;
@@ -664,6 +670,7 @@ class TrailRenderer extends THREE.Object3D {
 		}
 
 	}
+
 }
 
 TrailRenderer.MaxHeadVertices = 128;
