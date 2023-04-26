@@ -6,7 +6,7 @@ The shape of the trail is specified by supplying a list of 3D points. These poin
 
 The trail renderer currently supports both textured and non-textured trails. Non-textured trails work well with many trail shapes in both translucent and opaque modes. Textured trails work well with many shapes as long as the trail is opaque; if the trail is not opaque, flat shapes work best. 
 
-Demo of the effect can be seen [here](http://projects.markkellogg.org/threejs/demoTrailRenderer.php)
+Demo of the effect can be seen [here](http://projects.markkellogg.org/threejs/demo_trail_renderer.php)
 
 The following code shows how to attach a trail renderer in a scene named 'scene' to an existing Object3D instance named 'trailTarget'.
 
