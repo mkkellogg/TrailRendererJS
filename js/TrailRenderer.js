@@ -125,27 +125,21 @@ class TrailRenderer extends THREE.Object3D {
 		var indices = new Uint32Array( this.faceCount * TrailRenderer.IndicesPerFace );
 
 		var nodeIDAttribute = new THREE.BufferAttribute( nodeIDs, 1 );
-		// nodeIDAttribute.setDynamic( true );
 		geometry.setAttribute( 'nodeID', nodeIDAttribute );
 
 		var nodeVertexIDAttribute = new THREE.BufferAttribute( nodeVertexIDs, 1 );
-		// nodeVertexIDAttribute.setDynamic( true );
 		geometry.setAttribute( 'nodeVertexID', nodeVertexIDAttribute );
 
 		var nodeCenterAttribute = new THREE.BufferAttribute( nodeCenters, TrailRenderer.PositionComponentCount );
-		// nodeCenterAttribute.setDynamic( true );
 		geometry.setAttribute( 'nodeCenter', nodeCenterAttribute );
 
 		var positionAttribute = new THREE.BufferAttribute( positions, TrailRenderer.PositionComponentCount );
-		// positionAttribute.setDynamic( true );
 		geometry.setAttribute( 'position', positionAttribute );
 
 		var uvAttribute = new THREE.BufferAttribute( uvs, TrailRenderer.UVComponentCount );
-		// uvAttribute.setDynamic( true );
 		geometry.setAttribute( 'uv', uvAttribute );
 
 		var indexAttribute = new THREE.BufferAttribute( indices, 1 );
-		// indexAttribute.setDynamic( true );
 		geometry.setIndex( indexAttribute );
 
 		this.geometry = geometry;
@@ -670,16 +664,6 @@ class TrailRenderer extends THREE.Object3D {
 		}
 
 	}
-
-
-	func = function () {
-                    
-		const str = "val";
-
-		return function () {
-			console.log(str + " " + this.val, this)
-		};
-	}();
 }
 
 TrailRenderer.MaxHeadVertices = 128;
