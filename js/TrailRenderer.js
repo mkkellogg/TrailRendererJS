@@ -892,5 +892,3 @@ class TrailRenderer extends THREE.Object3D {
 		}
 	};
 }
-
-
