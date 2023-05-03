@@ -30,4 +30,32 @@ var trailLength = 150;
 
 // initialize the trail
 trail.initialize( trailMaterial, trailLength, false, 0, trailHeadGeometry, trailTarget );
+
+// activate the trail
+trail.activate();
 ```
+
+At each frame, you'll either need to call `updateHead()` or `advance()`
+
+```javascript
+function animate() {
+
+    requestAnimationFrame( animate );
+    update();
+    render();
+ 
+}
+
+var lastTrailUpdateTime = performance.now();
+function update() {
+    var time = performance.now();
+    if ( time - lastTrailUpdateTime > 10 ) {
+        trail.advance();
+        lastTrailUpdateTime = time;
+    } else {
+        trail.updateHead();
+    }
+}
+```
+
+`advance()` will grow the trail (depending on the length settings) while `updateHead()` will simply update the trail's transforms from `trailTarget`
