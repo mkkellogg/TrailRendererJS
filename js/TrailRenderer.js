@@ -2,6 +2,7 @@
 * @author Mark Kellogg - http://www.github.com/mkkellogg
 */
 
+
 //=======================================
 // Trail Renderer
 //=======================================
@@ -671,184 +672,225 @@ class TrailRenderer extends THREE.Object3D {
 
 	}
 
+	static createMaterial( vertexShader, fragmentShader, customUniforms ) {
+
+		customUniforms = customUniforms || {};
+	
+		customUniforms.trailLength = { type: "f", value: null };
+		customUniforms.verticesPerNode = { type: "f", value: null };
+		customUniforms.minID = { type: "f", value: null };
+		customUniforms.maxID = { type: "f", value: null };
+		customUniforms.dragTexture = { type: "f", value: null };
+		customUniforms.maxTrailLength = { type: "f", value: null };
+		customUniforms.textureTileFactor = { type: "v2", value: null };
+	
+		customUniforms.headColor = { type: "v4", value: new THREE.Vector4() };
+		customUniforms.tailColor = { type: "v4", value: new THREE.Vector4() };
+	
+		vertexShader = vertexShader || TrailRenderer.Shader.BaseVertexShader;
+		fragmentShader = fragmentShader || TrailRenderer.Shader.BaseFragmentShader;
+	
+		return new THREE.ShaderMaterial(
+		{
+			uniforms: customUniforms,
+			vertexShader: vertexShader,
+			fragmentShader: fragmentShader,
+	
+			transparent: true,
+			alphaTest: 0.5,
+	
+			blending : THREE.CustomBlending,
+			blendSrc : THREE.SrcAlphaFactor,
+			blendDst : THREE.OneMinusSrcAlphaFactor,
+			blendEquation : THREE.AddEquation,
+	
+			depthTest: true,
+			depthWrite: false,
+	
+			side: THREE.DoubleSide
+		} );
+	
+	}
+	
+	static createBaseMaterial( customUniforms ) {
+	
+		return TrailRenderer.createMaterial( TrailRenderer.Shader.BaseVertexShader, TrailRenderer.Shader.BaseFragmentShader, customUniforms );
+	
+	}
+
+	static createTexturedMaterial ( customUniforms ) {
+	
+		customUniforms = {};
+		customUniforms.trailTexture = { type: "t", value: null };
+	
+		return TrailRenderer.createMaterial( TrailRenderer.Shader.TexturedVertexShader, TrailRenderer.Shader.TexturedFragmentShader, customUniforms );
+	
+	}
+
+	static get MaxHeadVertices () {
+		return 128;
+	}
+
+	static _LocalOrientationTangent = new THREE.Vector3( 1, 0, 0 );
+	static get LocalOrientationTangent () {
+		return _LocalOrientationTangent;
+	}
+
+	static _LocalHeadOrigin = new THREE.Vector3( 0, 0, 0 );
+	static get LocalHeadOrigin () {
+		return _LocalHeadOrigin;
+	}
+
+	static get PositionComponentCount () {
+		return 3;
+	}
+
+	static get UVComponentCount () {
+		return 2;
+	}
+
+	static get IndicesPerFace () {
+		return 3;
+	}
+
+	static get FacesPerQuad () {
+		return 2;
+	}
+
+	static Shader = {
+
+		get BaseVertexVars() {
+
+			return [
+
+				"attribute float nodeID;",
+				"attribute float nodeVertexID;",
+				"attribute vec3 nodeCenter;",
+			
+				"uniform float minID;",
+				"uniform float maxID;",
+				"uniform float trailLength;",
+				"uniform float maxTrailLength;",
+				"uniform float verticesPerNode;",
+				"uniform vec2 textureTileFactor;",
+			
+				"uniform vec4 headColor;",
+				"uniform vec4 tailColor;",
+			
+				"varying vec4 vColor;",
+			
+			].join( "\n" )
+		},
+
+		get TexturedVertexVars() {
+
+			return [
+
+				this.BaseVertexVars, 
+				"varying vec2 vUV;",
+				"uniform float dragTexture;",
+			
+			].join( "\n" );
+		},
+
+		BaseFragmentVars: [
+
+			"varying vec4 vColor;",
+			"uniform sampler2D trailTexture;",
+		
+		].join( "\n" ),
+
+		get TexturedFragmentVars() {
+
+			return [
+
+				this.BaseFragmentVars,
+				"varying vec2 vUV;"
+			
+			].join( "\n" );
+		},
+
+		get VertexShaderCore() {
+
+			return [
+
+				"float fraction = ( maxID - nodeID ) / ( maxID - minID );",
+				"vColor = ( 1.0 - fraction ) * headColor + fraction * tailColor;",
+				"vec4 realPosition = vec4( ( 1.0 - fraction ) * position.xyz + fraction * nodeCenter.xyz, 1.0 ); ", 
+			
+			].join( "\n" );
+		},
+
+		get BaseVertexShader() {
+
+			return [
+
+				this.BaseVertexVars,
+			
+				"void main() { ",
+					this.VertexShaderCore,
+					"gl_Position = projectionMatrix * viewMatrix * realPosition;",
+				"}"
+			
+			].join( "\n" );
+
+		},
+
+		get BaseFragmentShader() {
+
+			return [
+
+				this.BaseFragmentVars,
+			
+				"void main() { ",
+					"gl_FragColor = vColor;",
+				"}"
+			
+			].join( "\n" );
+
+		},
+
+		get TexturedVertexShader() {
+
+			return [
+
+				this.TexturedVertexVars,
+			
+				"void main() { ",
+					this.VertexShaderCore,
+					"float s = 0.0;",
+					"float t = 0.0;",
+					"if ( dragTexture == 1.0 ) { ",
+					"   s = fraction *  textureTileFactor.s; ",
+					" 	t = ( nodeVertexID / verticesPerNode ) * textureTileFactor.t;",
+					"} else { ",
+					"	s = nodeID / maxTrailLength * textureTileFactor.s;",
+					" 	t = ( nodeVertexID / verticesPerNode ) * textureTileFactor.t;",
+					"}",
+					"vUV = vec2( s, t ); ",
+					"gl_Position = projectionMatrix * viewMatrix * realPosition;",
+				"}"
+			
+			].join( "\n" );
+
+		},
+
+		get TexturedFragmentShader() {
+
+			return [
+
+				this.TexturedFragmentVars,
+			
+				"void main() { ",
+			
+					"vec4 textureColor = texture2D( trailTexture, vUV );",
+					"gl_FragColor = vColor * textureColor;",
+			
+				"}"
+			
+			].join( "\n" );
+		}
+	};
 }
 
-TrailRenderer.MaxHeadVertices = 128;
-TrailRenderer.LocalOrientationTangent = new THREE.Vector3( 1, 0, 0 );
-TrailRenderer.LocalOrientationDirection = new THREE.Vector3( 0, 0, -1 );
-TrailRenderer.LocalHeadOrigin = new THREE.Vector3( 0, 0, 0 );
-TrailRenderer.PositionComponentCount = 3;
-TrailRenderer.UVComponentCount = 2;
-TrailRenderer.IndicesPerFace = 3;
-TrailRenderer.FacesPerQuad = 2;
-
-
-TrailRenderer.Shader = {};
-
-TrailRenderer.Shader.BaseVertexVars = [
-
-	"attribute float nodeID;",
-	"attribute float nodeVertexID;",
-	"attribute vec3 nodeCenter;",
-
-	"uniform float minID;",
-	"uniform float maxID;",
-	"uniform float trailLength;",
-	"uniform float maxTrailLength;",
-	"uniform float verticesPerNode;",
-	"uniform vec2 textureTileFactor;",
-
-	"uniform vec4 headColor;",
-	"uniform vec4 tailColor;",
-
-	"varying vec4 vColor;",
-
-].join( "\n" );
-
-TrailRenderer.Shader.TexturedVertexVars = [
-
-	TrailRenderer.Shader.BaseVertexVars, 
-	"varying vec2 vUV;",
-	"uniform float dragTexture;",
-
-].join( "\n" );
-
-TrailRenderer.Shader.BaseFragmentVars = [
-
-	"varying vec4 vColor;",
-	"uniform sampler2D trailTexture;",
-
-].join( "\n" );
-
-TrailRenderer.Shader.TexturedFragmentVars = [
-
-	TrailRenderer.Shader.BaseFragmentVars,
-	"varying vec2 vUV;"
-
-].join( "\n" );
-
-
-TrailRenderer.Shader.VertexShaderCore = [
-
-	"float fraction = ( maxID - nodeID ) / ( maxID - minID );",
-	"vColor = ( 1.0 - fraction ) * headColor + fraction * tailColor;",
-	"vec4 realPosition = vec4( ( 1.0 - fraction ) * position.xyz + fraction * nodeCenter.xyz, 1.0 ); ", 
-
-].join( "\n" );
-
-TrailRenderer.Shader.BaseVertexShader = [
-
-	TrailRenderer.Shader.BaseVertexVars,
-
-	"void main() { ",
-
-		TrailRenderer.Shader.VertexShaderCore,
-		"gl_Position = projectionMatrix * viewMatrix * realPosition;",
-
-	"}"
-
-].join( "\n" );
-
-TrailRenderer.Shader.BaseFragmentShader = [
-
-	TrailRenderer.Shader.BaseFragmentVars,
-
-	"void main() { ",
-
-		"gl_FragColor = vColor;",
-
-	"}"
-
-].join( "\n" );
-
-TrailRenderer.Shader.TexturedVertexShader = [
-
-	TrailRenderer.Shader.TexturedVertexVars,
-
-	"void main() { ",
-
-		TrailRenderer.Shader.VertexShaderCore,
-		"float s = 0.0;",
-		"float t = 0.0;",
-		"if ( dragTexture == 1.0 ) { ",
-		"   s = fraction *  textureTileFactor.s; ",
-		" 	t = ( nodeVertexID / verticesPerNode ) * textureTileFactor.t;",
-		"} else { ",
-		"	s = nodeID / maxTrailLength * textureTileFactor.s;",
-		" 	t = ( nodeVertexID / verticesPerNode ) * textureTileFactor.t;",
-		"}",
-		"vUV = vec2( s, t ); ",
-		"gl_Position = projectionMatrix * viewMatrix * realPosition;",
-
-	"}"
-
-].join( "\n" );
-
-TrailRenderer.Shader.TexturedFragmentShader = [
-
-	TrailRenderer.Shader.TexturedFragmentVars,
-
-	"void main() { ",
-
-	    "vec4 textureColor = texture2D( trailTexture, vUV );",
-		"gl_FragColor = vColor * textureColor;",
-
-	"}"
-
-].join( "\n" );
-
-TrailRenderer.createMaterial = function( vertexShader, fragmentShader, customUniforms ) {
-
-	customUniforms = customUniforms || {};
-
-	customUniforms.trailLength = { type: "f", value: null };
-	customUniforms.verticesPerNode = { type: "f", value: null };
-	customUniforms.minID = { type: "f", value: null };
-	customUniforms.maxID = { type: "f", value: null };
-	customUniforms.dragTexture = { type: "f", value: null };
-	customUniforms.maxTrailLength = { type: "f", value: null };
-	customUniforms.textureTileFactor = { type: "v2", value: null };
-
-	customUniforms.headColor = { type: "v4", value: new THREE.Vector4() };
-	customUniforms.tailColor = { type: "v4", value: new THREE.Vector4() };
-
-	vertexShader = vertexShader || TrailRenderer.Shader.BaseVertexShader;
-	fragmentShader = fragmentShader || TrailRenderer.Shader.BaseFragmentShader;
-
-	return new THREE.ShaderMaterial(
-	{
-		uniforms: customUniforms,
-		vertexShader: vertexShader,
-		fragmentShader: fragmentShader,
-
-		transparent: true,
-		alphaTest: 0.5,
-
-		blending : THREE.CustomBlending,
-		blendSrc : THREE.SrcAlphaFactor,
-		blendDst : THREE.OneMinusSrcAlphaFactor,
-		blendEquation : THREE.AddEquation,
-
-		depthTest: true,
-		depthWrite: false,
-
-		side: THREE.DoubleSide
-	} );
-
-}
-
-TrailRenderer.createBaseMaterial = function( customUniforms ) {
-
-	return this.createMaterial( TrailRenderer.Shader.BaseVertexShader, TrailRenderer.Shader.BaseFragmentShader, customUniforms );
-
-}
-
-TrailRenderer.createTexturedMaterial = function( customUniforms ) {
-
-	customUniforms = {};
-	customUniforms.trailTexture = { type: "t", value: null };
-
-	return this.createMaterial( TrailRenderer.Shader.TexturedVertexShader, TrailRenderer.Shader.TexturedFragmentShader, customUniforms );
-
-}
 
