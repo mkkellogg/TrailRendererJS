@@ -12,7 +12,7 @@ The following code shows how to attach a trail renderer in a scene named 'scene'
 
 ```javascript
 // specify points to create planar trail-head geometry
-var trailHeadGeometry = [];
+const trailHeadGeometry = [];
 trailHeadGeometry.push( 
   new THREE.Vector3( -10.0, 0.0, 0.0 ), 
   new THREE.Vector3( 0.0, 0.0, 0.0 ), 
@@ -20,13 +20,13 @@ trailHeadGeometry.push(
 );
 
 // create the trail renderer object
-var trail = new TrailRenderer( scene, false );
+const trail = new TrailRenderer( scene, false );
 
 // create material for the trail renderer
-var trailMaterial = TrailRenderer.createBaseMaterial();	
+const trailMaterial = TrailRenderer.createBaseMaterial();	
 
 // specify length of trail
-var trailLength = 150;
+const trailLength = 150;
 
 // initialize the trail
 trail.initialize( trailMaterial, trailLength, false, 0, trailHeadGeometry, trailTarget );
@@ -46,9 +46,9 @@ function animate() {
  
 }
 
-var lastTrailUpdateTime = performance.now();
+let lastTrailUpdateTime = performance.now();
 function update() {
-    var time = performance.now();
+    const time = performance.now();
     if ( time - lastTrailUpdateTime > 10 ) {
         trail.advance();
         lastTrailUpdateTime = time;
