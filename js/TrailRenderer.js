@@ -225,11 +225,10 @@ class TrailRenderer extends THREE.Object3D {
             }
 
             if (this.currentLength >= 1) {
-                const connectRange = this.connectNodes(this.currentEnd , nextIndex);
-                let disconnectRange = null;
+                this.connectNodes(this.currentEnd , nextIndex);
                 if(this.currentLength >= this.length) {
                     const disconnectIndex  = this.currentEnd + 1  >= this.length ? 0 : this.currentEnd + 1;
-                    disconnectRange = this.disconnectNodes(disconnectIndex);
+                    this.disconnectNodes(disconnectIndex);
                 }
             }
 
@@ -237,7 +236,7 @@ class TrailRenderer extends THREE.Object3D {
                 this.currentLength ++;
             }
 
-            this.currentEnd ++;
+            this.currentEnd++;
             if (this.currentEnd >= this.length) {
                 this.currentEnd = 0;
             }
@@ -447,7 +446,7 @@ class TrailRenderer extends THREE.Object3D {
 
     }();
 
-    disconnectNodes = function(srcNodeIndex) {
+    disconnectNodes = function() {
 
         const returnObj = {
             "attribute" : null,
@@ -458,7 +457,6 @@ class TrailRenderer extends THREE.Object3D {
         return function disconnectNodes(srcNodeIndex) {
             const indices = this.geometry.getIndex();
             for (let i = 0; i < this.localHeadGeometry.length - 1; i ++) {
-                const srcVertexIndex = (this.VerticesPerNode * srcNodeIndex) + i;
                 const faceIndex = ((srcNodeIndex * this.FacesPerNode) + (i * TrailRenderer.FacesPerQuad)) * TrailRenderer.IndicesPerFace;
                 indices.array[ faceIndex ] = 0;
                 indices.array[ faceIndex + 1 ] = 0;

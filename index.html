@@ -232,7 +232,7 @@
     }
 
     function initTrailRenderers(callback) {
-        trail = new TrailRenderer(scene, false);    
+        trail = new TrailRenderer(scene, false);
         baseTrailMaterial = TrailRenderer.createBaseMaterial();
         const textureLoader = new THREE.TextureLoader();
         textureLoader.load("textures/sparkle4.jpg", function(tex) {
