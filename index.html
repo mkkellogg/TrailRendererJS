@@ -413,14 +413,14 @@
 		var tempForward = new THREE.Vector3();
 		var tempUp = new THREE.Vector3();
 
-		var tempRotationMatrix= new THREE.Matrix4();
-		var tempTranslationMatrix= new THREE.Matrix4();
+		var tempRotationMatrix = new THREE.Matrix4();
+		var tempTranslationMatrix = new THREE.Matrix4();
 
 		var currentTargetPosition = new THREE.Vector3();
 		var lastTargetPosition = new THREE.Vector3();
 
 		var currentDirection = new THREE.Vector3();
-		var lastDirection= new THREE.Vector3();
+		var lastDirection = new THREE.Vector3();
 
 		var lastRotationMatrix = new THREE.Matrix4();
 
@@ -456,11 +456,13 @@
 			currentTargetPosition.y = Math.sin( scaledTime * 1.1 ) * areaScale;
 			currentTargetPosition.z = Math.sin( scaledTime * 1.6 ) * areaScale;
 
-			lastDirection.copy( currentDirection );
-
 			currentDirection.copy( currentTargetPosition );
 			currentDirection.sub( lastTargetPosition );
 			currentDirection.normalize();
+
+			if (currentDirection.lengthSq() < .1) {
+				currentDirection.copy(lastDirection);
+			}
 
 			tempUp.crossVectors( currentDirection, baseForward );
 			var angle = baseForward.angleTo( currentDirection );
@@ -470,7 +472,7 @@
 				tempQuaternion.setFromUnitVectors( baseForward, currentDirection );
 				tempQuaternion.normalize();
 				tempRotationMatrix.makeRotationFromQuaternion( tempQuaternion );
-				lastRotationMatrix.copy( tempRotationMatrix );							
+				lastRotationMatrix.copy( tempRotationMatrix );
 
 			}
 			
@@ -481,6 +483,7 @@
 			trailTarget.applyMatrix4( tempTranslationMatrix );
 			trailTarget.updateMatrixWorld();
 
+			lastDirection.copy( currentDirection );
 		}
 
 	}();
