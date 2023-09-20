@@ -2,7 +2,6 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-
     <script src="js/three.min.js"></script>
     <script src="js/Detector.js"></script>
     <script src="js/libs/stats.min.js"></script>
@@ -52,7 +51,6 @@
 
     let scene, gui, renderer, clock;
     let camera, pointLight, ambientLight, controls, stats;
-    
     let options;
     let starPoints, circlePoints, planePoints;
     let trailTarget;
@@ -65,14 +63,11 @@
     }, false);
 
     function init() {
-
         simulationPause = false;
         clock = new THREE.Clock();
         lastTrailUpdateTime = performance.now();
         lastTrailResetTime = performance.now();
-
         getScreenDimensions();
-
         initTrailOptions();
         initScene();
         initGUI();
@@ -86,50 +81,41 @@
                 animate();
             });
         });
-
     }
 
     function initTrailOptions() {
-
          options = {
             headRed : 1.0,
             headGreen : 0.0,
             headBlue : 0.0,
             headAlpha : 0.75,
-
             tailRed : 0.0,
             tailGreen : 1.0,
             tailBlue : 1.0,
             tailAlpha : 0.35,
-
             trailLength : 300,
             trailType : TrailTypes.Textured,
             trailShape : TrailShapes.Plane,
-
             textureTileFactorS : 10.0,
             textureTileFactorT : 0.8,
-
             dragTexture : false,
             depthWrite : false,
-
             pauseSim : false
         };
-
     }
 
     function initGUI() {
-
         gui = new dat.GUI();  
 
-        gui.add(options, 'trailType', { Basic : TrailTypes.Basic, Textured : TrailTypes.Textured }).name("Trail type").onChange(function() {
+        gui.add(options, 'trailType', {Basic: TrailTypes.Basic, Textured: TrailTypes.Textured}).name("Trail type").onChange(function() {
             options.trailType = parseInt(options.trailType);
             updateTrailType();
         });
 
         gui.add(options, 'trailShape', { 
-            Plane : TrailShapes.Plane, 
-            Star : TrailShapes.Star, 
-            Circle : TrailShapes.Circle 
+            Plane: TrailShapes.Plane, 
+            Star: TrailShapes.Star, 
+            Circle: TrailShapes.Circle 
         }).name("Trail shape").onChange(function() {
             options.trailShape = parseInt(options.trailShape);
             updateTrailShape();
@@ -157,7 +143,6 @@
         textureOptions.add(options, 'dragTexture').name("Drag Texture").onChange(updateTrailTextureDrag);
 
         gui.domElement.parentNode.style.zIndex = 100;
-
     }
 
     function initListeners() {
@@ -207,17 +192,17 @@
         }
 
         starPoints = [];
-        starPoints.push(new THREE.Vector3 ( 0,  16));
-        starPoints.push(new THREE.Vector3 ( 4,  4));
-        starPoints.push(new THREE.Vector3 ( 16,  4));
-        starPoints.push(new THREE.Vector3 ( 8, -4));
-        starPoints.push(new THREE.Vector3 ( 12, -16));
-        starPoints.push(new THREE.Vector3 (  0, -8));
-        starPoints.push(new THREE.Vector3 (-12, -16));
-        starPoints.push(new THREE.Vector3 (-8, -4));
-        starPoints.push(new THREE.Vector3 (-16,  4));
-        starPoints.push(new THREE.Vector3 (-4,  4));
-        starPoints.push(new THREE.Vector3 ( 0,  16));
+        starPoints.push(new THREE.Vector3(0,  16));
+        starPoints.push(new THREE.Vector3(4,  4));
+        starPoints.push(new THREE.Vector3(16,  4));
+        starPoints.push(new THREE.Vector3(8, -4));
+        starPoints.push(new THREE.Vector3(12, -16));
+        starPoints.push(new THREE.Vector3( 0, -8));
+        starPoints.push(new THREE.Vector3(-12, -16));
+        starPoints.push(new THREE.Vector3(-8, -4));
+        starPoints.push(new THREE.Vector3(-16,  4));
+        starPoints.push(new THREE.Vector3(-4,  4));
+        starPoints.push(new THREE.Vector3(0,  16));
     }
 
     function initTrailTarget() {
@@ -243,32 +228,25 @@
         trailTarget.scale.multiplyScalar(1);
         trailTarget.receiveShadow = false;
         trailTarget.matrixAutoUpdate = false;
-
         scene.add(trailTarget);
     }
 
     function initTrailRenderers(callback) {
         trail = new TrailRenderer(scene, false);    
-        baseTrailMaterial = TrailRenderer.createBaseMaterial();       
- 
+        baseTrailMaterial = TrailRenderer.createBaseMaterial();
         const textureLoader = new THREE.TextureLoader();
         textureLoader.load("textures/sparkle4.jpg", function(tex) {
             tex.wrapS = THREE.RepeatWrapping;
             tex.wrapT = THREE.RepeatWrapping;
             texturedTrailMaterial = TrailRenderer.createTexturedMaterial();
             texturedTrailMaterial.uniforms.trailTexture.value = tex;
-            continueInitialization();
+            setTrailShapeFromOptions();
+            setTrailTypeFromOptions();
+            initializeTrail();
             if (callback) {
                 callback();
             }
         });
-
-        function continueInitialization() {;
-            setTrailShapeFromOptions();
-            setTrailTypeFromOptions();
-            initializeTrail();
-        }
-
     }
 
     function updateTrailLength() {
@@ -369,7 +347,6 @@
 
             currentDirection.copy(currentTargetPosition);
             currentDirection.sub(lastTargetPosition);
-
             if (currentDirection.lengthSq() < .001) {
                 currentDirection.copy(lastDirection);
             } else {
@@ -434,10 +411,8 @@
     }
 
     function getScreenDimensions() {
-
         screenWidth = window.innerWidth;
         screenHeight = window.innerHeight;
-
     }
 
     function resetCamera() {
