@@ -11,16 +11,12 @@ class TrailRenderer extends THREE.Object3D {
 
     constructor (scene, orientToMovement) {
         super();
-
         this.active = false;
-
         this.orientToMovement = false;
         if (orientToMovement) this.orientToMovement = true;
-    
         this.scene = scene;
         this.geometry = null;
         this.mesh = null;
-    
         this.nodeCenters = null;
         this.lastNodeCenter = null;
         this.currentNodeCenter = null;
@@ -256,6 +252,7 @@ class TrailRenderer extends THREE.Object3D {
             this.updateNodeID(this.currentEnd,  this.currentNodeID);
             this.currentNodeID ++;
         };
+
     }();
 
     updateHead = function() {
@@ -338,6 +335,7 @@ class TrailRenderer extends THREE.Object3D {
 
             positions.needsUpdate = true;
         };
+
     }();
 
     updateNodePositionsFromTransformMatrix = function() { 
@@ -414,6 +412,7 @@ class TrailRenderer extends THREE.Object3D {
             positions.updateRange.offset = nodeIndex * this.VerticesPerNode * TrailRenderer.PositionComponentCount; 
             positions.updateRange.count = this.VerticesPerNode * TrailRenderer.PositionComponentCount; 
         };
+
     }();
 
     connectNodes = function() {
@@ -445,6 +444,7 @@ class TrailRenderer extends THREE.Object3D {
             return returnObj;
 
         };
+
     }();
 
     disconnectNodes = function(srcNodeIndex) {
@@ -474,6 +474,7 @@ class TrailRenderer extends THREE.Object3D {
             returnObj.count = this.FacesPerNode * TrailRenderer.IndicesPerFace;
             return returnObj;
         };
+
     }();
 
     deactivate () {
@@ -506,8 +507,7 @@ class TrailRenderer extends THREE.Object3D {
         vertexShader = vertexShader || TrailRenderer.Shader.BaseVertexShader;
         fragmentShader = fragmentShader || TrailRenderer.Shader.BaseFragmentShader;
 
-        return new THREE.ShaderMaterial(
-        {
+        return new THREE.ShaderMaterial({
             uniforms: customUniforms,
             vertexShader: vertexShader,
             fragmentShader: fragmentShader,
