@@ -1,3 +1,16 @@
+import {
+	EventDispatcher,
+	MOUSE,
+	Quaternion,
+	Spherical,
+	TOUCH,
+	Vector2,
+	Vector3,
+	Plane,
+	Ray,
+	MathUtils
+} from 'three';
+
 // OrbitControls performs orbiting, dollying (zooming), and panning.
 // Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
 //
@@ -8,8 +21,11 @@
 const _changeEvent = { type: 'change' };
 const _startEvent = { type: 'start' };
 const _endEvent = { type: 'end' };
+const _ray = new Ray();
+const _plane = new Plane();
+const TILT_LIMIT = Math.cos( 70 * MathUtils.DEG2RAD );
 
-class OrbitControls extends THREE.EventDispatcher {
+class OrbitControls extends EventDispatcher {
 
 	constructor( object, domElement ) {
 
@@ -23,7 +39,7 @@ class OrbitControls extends THREE.EventDispatcher {
 		this.enabled = true;
 
 		// "target" sets the location of focus, where the object orbits around
-		this.target = new THREE.Vector3();
+		this.target = new Vector3();
 
 		// How far you can dolly in and out ( PerspectiveCamera only )
 		this.minDistance = 0;
@@ -62,6 +78,7 @@ class OrbitControls extends THREE.EventDispatcher {
 		this.panSpeed = 1.0;
 		this.screenSpacePanning = true; // if false, pan orthogonal to world-space direction camera.up
 		this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
+		this.zoomToCursor = false;
 
 		// Set to true to automatically rotate around the target
 		// If auto-rotate is enabled, you must call controls.update() in your animation loop
@@ -72,10 +89,10 @@ class OrbitControls extends THREE.EventDispatcher {
 		this.keys = { LEFT: 'ArrowLeft', UP: 'ArrowUp', RIGHT: 'ArrowRight', BOTTOM: 'ArrowDown' };
 
 		// Mouse buttons
-		this.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+		this.mouseButtons = { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN };
 
 		// Touch fingers
-		this.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+		this.touches = { ONE: TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN };
 
 		// for reset
 		this.target0 = this.target.clone();
@@ -147,14 +164,15 @@ class OrbitControls extends THREE.EventDispatcher {
 		// this method is exposed, but perhaps it would be better if we can make it private...
 		this.update = function () {
 
-			const offset = new THREE.Vector3();
+			const offset = new Vector3();
 
 			// so camera.up is the orbit axis
-			const quat = new THREE.Quaternion().setFromUnitVectors( object.up, new THREE.Vector3( 0, 1, 0 ) );
+			const quat = new Quaternion().setFromUnitVectors( object.up, new Vector3( 0, 1, 0 ) );
 			const quatInverse = quat.clone().invert();
 
-			const lastPosition = new THREE.Vector3();
-			const lastQuaternion = new THREE.Quaternion();
+			const lastPosition = new Vector3();
+			const lastQuaternion = new Quaternion();
+			const lastTargetPosition = new Vector3();
 
 			const twoPI = 2 * Math.PI;
 
@@ -219,11 +237,6 @@ class OrbitControls extends THREE.EventDispatcher {
 				spherical.makeSafe();
 
 
-				spherical.radius *= scale;
-
-				// restrict radius to be between desired limits
-				spherical.radius = Math.max( scope.minDistance, Math.min( scope.maxDistance, spherical.radius ) );
-
 				// move target to panned location
 
 				if ( scope.enableDamping === true ) {
@@ -235,6 +248,19 @@ class OrbitControls extends THREE.EventDispatcher {
 					scope.target.add( panOffset );
 
 				}
+
+				// adjust the camera position based on zoom only if we're not zooming to the cursor or if it's an ortho camera
+				// we adjust zoom later in these cases
+				if ( scope.zoomToCursor && performCursorZoom || scope.object.isOrthographicCamera ) {
+
+					spherical.radius = clampDistance( spherical.radius );
+
+				} else {
+
+					spherical.radius = clampDistance( spherical.radius * scale );
+
+				}
+
 
 				offset.setFromSpherical( spherical );
 
@@ -260,7 +286,91 @@ class OrbitControls extends THREE.EventDispatcher {
 
 				}
 
+				// adjust camera position
+				let zoomChanged = false;
+				if ( scope.zoomToCursor && performCursorZoom ) {
+
+					let newRadius = null;
+					if ( scope.object.isPerspectiveCamera ) {
+
+						// move the camera down the pointer ray
+						// this method avoids floating point error
+						const prevRadius = offset.length();
+						newRadius = clampDistance( prevRadius * scale );
+
+						const radiusDelta = prevRadius - newRadius;
+						scope.object.position.addScaledVector( dollyDirection, radiusDelta );
+						scope.object.updateMatrixWorld();
+
+					} else if ( scope.object.isOrthographicCamera ) {
+
+						// adjust the ortho camera position based on zoom changes
+						const mouseBefore = new Vector3( mouse.x, mouse.y, 0 );
+						mouseBefore.unproject( scope.object );
+
+						scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / scale ) );
+						scope.object.updateProjectionMatrix();
+						zoomChanged = true;
+
+						const mouseAfter = new Vector3( mouse.x, mouse.y, 0 );
+						mouseAfter.unproject( scope.object );
+
+						scope.object.position.sub( mouseAfter ).add( mouseBefore );
+						scope.object.updateMatrixWorld();
+
+						newRadius = offset.length();
+
+					} else {
+
+						console.warn( 'WARNING: OrbitControls.js encountered an unknown camera type - zoom to cursor disabled.' );
+						scope.zoomToCursor = false;
+
+					}
+
+					// handle the placement of the target
+					if ( newRadius !== null ) {
+
+						if ( this.screenSpacePanning ) {
+
+							// position the orbit target in front of the new camera position
+							scope.target.set( 0, 0, - 1 )
+								.transformDirection( scope.object.matrix )
+								.multiplyScalar( newRadius )
+								.add( scope.object.position );
+
+						} else {
+
+							// get the ray and translation plane to compute target
+							_ray.origin.copy( scope.object.position );
+							_ray.direction.set( 0, 0, - 1 ).transformDirection( scope.object.matrix );
+
+							// if the camera is 20 degrees above the horizon then don't adjust the focus target to avoid
+							// extremely large values
+							if ( Math.abs( scope.object.up.dot( _ray.direction ) ) < TILT_LIMIT ) {
+
+								object.lookAt( scope.target );
+
+							} else {
+
+								_plane.setFromNormalAndCoplanarPoint( scope.object.up, scope.target );
+								_ray.intersectPlane( _plane, scope.target );
+
+							}
+
+						}
+
+					}
+
+				} else if ( scope.object.isOrthographicCamera ) {
+
+					scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / scale ) );
+					scope.object.updateProjectionMatrix();
+					zoomChanged = true;
+
+				}
+
 				scale = 1;
+				performCursorZoom = false;
 
 				// update condition is:
 				// min(camera displacement, camera rotation in radians)^2 > EPS
@@ -268,12 +378,15 @@ class OrbitControls extends THREE.EventDispatcher {
 
 				if ( zoomChanged ||
 					lastPosition.distanceToSquared( scope.object.position ) > EPS ||
-					8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ) {
+					8 * ( 1 - lastQuaternion.dot( scope.object.quaternion ) ) > EPS ||
+					lastTargetPosition.distanceToSquared( scope.target ) > 0 ) {
 
 					scope.dispatchEvent( _changeEvent );
 
 					lastPosition.copy( scope.object.position );
 					lastQuaternion.copy( scope.object.quaternion );
+					lastTargetPosition.copy( scope.target );
+
 					zoomChanged = false;
 
 					return true;
@@ -331,24 +444,27 @@ class OrbitControls extends THREE.EventDispatcher {
 		const EPS = 0.000001;
 
 		// current position in spherical coordinates
-		const spherical = new THREE.Spherical();
-		const sphericalDelta = new THREE.Spherical();
+		const spherical = new Spherical();
+		const sphericalDelta = new Spherical();
 
 		let scale = 1;
-		const panOffset = new THREE.Vector3();
-		let zoomChanged = false;
+		const panOffset = new Vector3();
 
-		const rotateStart = new THREE.Vector2();
-		const rotateEnd = new THREE.Vector2();
-		const rotateDelta = new THREE.Vector2();
+		const rotateStart = new Vector2();
+		const rotateEnd = new Vector2();
+		const rotateDelta = new Vector2();
 
-		const panStart = new THREE.Vector2();
-		const panEnd = new THREE.Vector2();
-		const panDelta = new THREE.Vector2();
+		const panStart = new Vector2();
+		const panEnd = new Vector2();
+		const panDelta = new Vector2();
 
-		const dollyStart = new THREE.Vector2();
-		const dollyEnd = new THREE.Vector2();
-		const dollyDelta = new THREE.Vector2();
+		const dollyStart = new Vector2();
+		const dollyEnd = new Vector2();
+		const dollyDelta = new Vector2();
+
+		const dollyDirection = new Vector3();
+		const mouse = new Vector2();
+		let performCursorZoom = false;
 
 		const pointers = [];
 		const pointerPositions = {};
@@ -379,7 +495,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 		const panLeft = function () {
 
-			const v = new THREE.Vector3();
+			const v = new Vector3();
 
 			return function panLeft( distance, objectMatrix ) {
 
@@ -394,7 +510,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 		const panUp = function () {
 
-			const v = new THREE.Vector3();
+			const v = new Vector3();
 
 			return function panUp( distance, objectMatrix ) {
 
@@ -420,7 +536,7 @@ class OrbitControls extends THREE.EventDispatcher {
 		// deltaX and deltaY are in pixels; right and down are positive
 		const pan = function () {
 
-			const offset = new THREE.Vector3();
+			const offset = new Vector3();
 
 			return function pan( deltaX, deltaY ) {
 
@@ -460,15 +576,9 @@ class OrbitControls extends THREE.EventDispatcher {
 
 		function dollyOut( dollyScale ) {
 
-			if ( scope.object.isPerspectiveCamera ) {
+			if ( scope.object.isPerspectiveCamera || scope.object.isOrthographicCamera ) {
 
 				scale /= dollyScale;
-
-			} else if ( scope.object.isOrthographicCamera ) {
-
-				scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom * dollyScale ) );
-				scope.object.updateProjectionMatrix();
-				zoomChanged = true;
 
 			} else {
 
@@ -481,15 +591,9 @@ class OrbitControls extends THREE.EventDispatcher {
 
 		function dollyIn( dollyScale ) {
 
-			if ( scope.object.isPerspectiveCamera ) {
+			if ( scope.object.isPerspectiveCamera || scope.object.isOrthographicCamera ) {
 
 				scale *= dollyScale;
-
-			} else if ( scope.object.isOrthographicCamera ) {
-
-				scope.object.zoom = Math.max( scope.minZoom, Math.min( scope.maxZoom, scope.object.zoom / dollyScale ) );
-				scope.object.updateProjectionMatrix();
-				zoomChanged = true;
 
 			} else {
 
@@ -497,6 +601,35 @@ class OrbitControls extends THREE.EventDispatcher {
 				scope.enableZoom = false;
 
 			}
+
+		}
+
+		function updateMouseParameters( event ) {
+
+			if ( ! scope.zoomToCursor ) {
+
+				return;
+
+			}
+
+			performCursorZoom = true;
+
+			const rect = scope.domElement.getBoundingClientRect();
+			const x = event.clientX - rect.left;
+			const y = event.clientY - rect.top;
+			const w = rect.width;
+			const h = rect.height;
+
+			mouse.x = ( x / w ) * 2 - 1;
+			mouse.y = - ( y / h ) * 2 + 1;
+
+			dollyDirection.set( mouse.x, mouse.y, 1 ).unproject( object ).sub( object.position ).normalize();
+
+		}
+
+		function clampDistance( dist ) {
+
+			return Math.max( scope.minDistance, Math.min( scope.maxDistance, dist ) );
 
 		}
 
@@ -512,6 +645,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 		function handleMouseDownDolly( event ) {
 
+			updateMouseParameters( event );
 			dollyStart.set( event.clientX, event.clientY );
 
 		}
@@ -577,6 +711,8 @@ class OrbitControls extends THREE.EventDispatcher {
 		}
 
 		function handleMouseWheel( event ) {
+
+			updateMouseParameters( event );
 
 			if ( event.deltaY < 0 ) {
 
@@ -919,7 +1055,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 			switch ( mouseAction ) {
 
-				case THREE.MOUSE.DOLLY:
+				case MOUSE.DOLLY:
 
 					if ( scope.enableZoom === false ) return;
 
@@ -929,7 +1065,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 					break;
 
-				case THREE.MOUSE.ROTATE:
+				case MOUSE.ROTATE:
 
 					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
 
@@ -951,7 +1087,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 					break;
 
-				case THREE.MOUSE.PAN:
+				case MOUSE.PAN:
 
 					if ( event.ctrlKey || event.metaKey || event.shiftKey ) {
 
@@ -1051,7 +1187,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 					switch ( scope.touches.ONE ) {
 
-						case THREE.TOUCH.ROTATE:
+						case TOUCH.ROTATE:
 
 							if ( scope.enableRotate === false ) return;
 
@@ -1061,7 +1197,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 							break;
 
-						case THREE.TOUCH.PAN:
+						case TOUCH.PAN:
 
 							if ( scope.enablePan === false ) return;
 
@@ -1083,7 +1219,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 					switch ( scope.touches.TWO ) {
 
-						case THREE.TOUCH.DOLLY_PAN:
+						case TOUCH.DOLLY_PAN:
 
 							if ( scope.enableZoom === false && scope.enablePan === false ) return;
 
@@ -1093,7 +1229,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 							break;
 
-						case THREE.TOUCH.DOLLY_ROTATE:
+						case TOUCH.DOLLY_ROTATE:
 
 							if ( scope.enableZoom === false && scope.enableRotate === false ) return;
 
@@ -1216,7 +1352,7 @@ class OrbitControls extends THREE.EventDispatcher {
 
 			if ( position === undefined ) {
 
-				position = new THREE.Vector2();
+				position = new Vector2();
 				pointerPositions[ event.pointerId ] = position;
 
 			}
@@ -1249,4 +1385,4 @@ class OrbitControls extends THREE.EventDispatcher {
 
 }
 
-window.OrbitControls = OrbitControls;
+export { OrbitControls };

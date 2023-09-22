@@ -1,13 +1,13 @@
 /**
 * @author Mark Kellogg - http://www.github.com/mkkellogg
 */
-
+import * as THREE from 'three';
 
 //=======================================
 // Trail Renderer
 //=======================================
 
-class TrailRenderer extends THREE.Object3D {
+export class TrailRenderer extends THREE.Object3D {
 
     constructor (scene, orientToMovement) {
         super();
