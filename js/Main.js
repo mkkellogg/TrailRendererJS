@@ -16,7 +16,7 @@ const TrailShapes = Object.freeze({
 let screenWidth, screenHeight;
 let scene, gui, renderer, rendererContainer;
 let camera, pointLight, ambientLight, controls, stats;
-let options;
+let options, lastFrameTime, elapsedSimTime;
 let starPoints, circlePoints, planePoints;
 let trailTarget;
 let trailHeadGeometry, trail, lastTrailUpdateTime, lastTrailResetTime;
@@ -28,6 +28,7 @@ window.addEventListener("load", function load(event) {
 }, false);
 
 function init() {
+    elapsedSimTime = 0;
     lastTrailUpdateTime = performance.now();
     lastTrailResetTime = performance.now();
     getScreenDimensions();
@@ -392,8 +393,13 @@ function animate() {
 }
 
 function update() {
-    const time = performance.now();
-    if (! options.pauseSim)updateTrailTarget(time);
+    const currentTime = performance.now();
+    const deltaTime = lastFrameTime ? currentTime - lastFrameTime : 0;
+    if (!options.pauseSim){
+        elapsedSimTime += deltaTime;
+        updateTrailTarget(elapsedSimTime);
+    }
+    lastFrameTime = currentTime;
     controls.update();
     stats.update();
 }
