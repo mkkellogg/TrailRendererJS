@@ -195,6 +195,7 @@ function initTrailTarget() {
 
 function initTrailRenderers(callback) {
     trail = new TrailRenderer(scene, false);
+    trail.setUpdateFrequency(20);
     baseTrailMaterial = TrailRenderer.createBaseMaterial();
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load("textures/sparkle4.jpg", function(tex) {
@@ -288,12 +289,7 @@ const updateTrailTarget = function updateTrailTarget() {
 
     return function updateTrailTarget(time) {
 
-        if (time - lastTrailUpdateTime > 10) {
-            trail.advance();
-            lastTrailUpdateTime = time;
-        } else {
-            trail.updateHead();
-        }
+        trail.update();
 
         tempRotationMatrix.identity();
         tempTranslationMatrix.identity();
@@ -393,7 +389,9 @@ function animate() {
 
 function update() {
     const time = performance.now();
-    if (! options.pauseSim)updateTrailTarget(time);
+    if (!options.pauseSim){
+        updateTrailTarget(time);
+    }
     controls.update();
     stats.update();
 }

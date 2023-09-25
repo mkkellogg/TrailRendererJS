@@ -25,6 +25,14 @@ export class TrailRenderer extends THREE.Object3D {
         this.currentLength = 0;
         this.currentEnd = 0;
         this.currentNodeID = 0;
+        this.updateFrequency = 60;
+        this.updatePeriod = 1 / this.updateFrequency;
+        this.lastTrailUpdateTime = 0;
+    }
+
+    setUpdateFrequency(updateFrequency) {
+        this.updateFrequency = updateFrequency;
+        this.updatePeriod = 1.0 / this.updateFrequency;
     }
 
     initialize (material, length, dragTexture, localHeadWidth, localHeadGeometry, targetObject) {
@@ -254,11 +262,22 @@ export class TrailRenderer extends THREE.Object3D {
 
     }();
 
+    update() {
+        const time = performance.now() / 1000;
+        if (!this.lastTrailUpdateTime) this.lastTrailUpdateTime = time;
+        if (time - this.lastTrailUpdateTime > this.updatePeriod) {
+            this.advance();
+            this.lastTrailUpdateTime = time;
+        } else {
+            this.updateHead();
+        }
+    }
+
     updateHead = function() {
 
         const tempMatrix4 = new THREE.Matrix4();
 
-        return function advance() {
+        return function updateHead() {
             if(this.currentEnd < 0) return;
             this.targetObject.updateMatrixWorld();
             tempMatrix4.copy(this.targetObject.matrixWorld);
