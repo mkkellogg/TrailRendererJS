@@ -28,6 +28,8 @@ export class TrailRenderer extends THREE.Object3D {
         this.updateFrequency = 60;
         this.updatePeriod = 1 / this.updateFrequency;
         this.lastTrailUpdateTime = 0;
+        this.paused = false;
+        this.pauseUpdateTimeDiff = 0;
     }
 
     setUpdateFrequency(updateFrequency) {
@@ -262,14 +264,34 @@ export class TrailRenderer extends THREE.Object3D {
 
     }();
 
+    currentTime() {
+        return performance.now() / 1000;
+    }
+
+    pause() {
+        if(!this.paused) {
+            this.paused = true;
+            this.pauseUpdateTimeDiff = this.currentTime() - this.lastTrailUpdateTime;
+        }
+    }
+
+    resume() {
+        if(this.paused) {
+            this.paused = false;
+            this.lastTrailUpdateTime = this.currentTime();// - this.pauseUpdateTimeDiff;
+        }
+    }
+
     update() {
-        const time = performance.now() / 1000;
-        if (!this.lastTrailUpdateTime) this.lastTrailUpdateTime = time;
-        if (time - this.lastTrailUpdateTime > this.updatePeriod) {
-            this.advance();
-            this.lastTrailUpdateTime = time;
-        } else {
-            this.updateHead();
+        if (!this.paused) {
+            const time = this.currentTime();
+            if (!this.lastTrailUpdateTime) this.lastTrailUpdateTime = time;
+            if (time - this.lastTrailUpdateTime > this.updatePeriod) {
+                this.advance();
+                this.lastTrailUpdateTime = time;
+            } else {
+                this.updateHead();
+            }
         }
     }
 

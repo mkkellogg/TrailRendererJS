@@ -87,7 +87,7 @@ function initGUI() {
 
     gui.add(options, "trailLength", 0, 1000).name("Trail length").onChange(updateTrailLength);    
     gui.add(options, 'depthWrite').name("Depth write").onChange(updateTrailDepthWrite);
-    gui.add(options, 'pauseSim').name("Pause simulation");
+    gui.add(options, 'pauseSim').name("Pause simulation").onChange(pauseResumeSimulation);
     
     const headColor = gui.addFolder("Head color");
     headColor.add(options, "headRed", 0.0, 1.0, 0.025).name("Red").onChange(updateTrailColors);
@@ -386,6 +386,14 @@ function animate() {
     requestAnimationFrame(animate);
     update();
     render();
+}
+
+function pauseResumeSimulation() {
+    if (trail.paused) {
+        trail.pause();
+    } else {
+        trail.resume();
+    }
 }
 
 function update() {
