@@ -25,6 +25,16 @@ export class TrailRenderer extends THREE.Object3D {
         this.currentLength = 0;
         this.currentEnd = 0;
         this.currentNodeID = 0;
+        this.advanceFrequency = 60;
+        this.advancePeriod = 1 / this.advanceFrequency;
+        this.lastAdvanceTime = 0;
+        this.paused = false;
+        this.pauseAdvanceUpdateTimeDiff = 0;
+    }
+
+    setAdvanceFrequency(advanceFrequency) {
+        this.advanceFrequency = advanceFrequency;
+        this.advancePeriod = 1.0 / this.advanceFrequency;
     }
 
     initialize (material, length, dragTexture, localHeadWidth, localHeadGeometry, targetObject) {
@@ -254,11 +264,42 @@ export class TrailRenderer extends THREE.Object3D {
 
     }();
 
+    currentTime() {
+        return performance.now() / 1000;
+    }
+
+    pause() {
+        if(!this.paused) {
+            this.paused = true;
+            this.pauseAdvanceUpdateTimeDiff = this.currentTime() - this.lastAdvanceTime;
+        }
+    }
+
+    resume() {
+        if(this.paused) {
+            this.paused = false;
+            this.lastAdvanceTime = this.currentTime() - this.pauseAdvanceUpdateTimeDiff;
+        }
+    }
+
+    update() {
+        if (!this.paused) {
+            const time = this.currentTime();
+            if (!this.lastAdvanceTime) this.lastAdvanceTime = time;
+            if (time - this.lastAdvanceTime > this.advancePeriod) {
+                this.advance();
+                this.lastAdvanceTime = time;
+            } else {
+                this.updateHead();
+            }
+        }
+    }
+
     updateHead = function() {
 
         const tempMatrix4 = new THREE.Matrix4();
 
-        return function advance() {
+        return function updateHead() {
             if(this.currentEnd < 0) return;
             this.targetObject.updateMatrixWorld();
             tempMatrix4.copy(this.targetObject.matrixWorld);
