@@ -25,16 +25,16 @@ export class TrailRenderer extends THREE.Object3D {
         this.currentLength = 0;
         this.currentEnd = 0;
         this.currentNodeID = 0;
-        this.updateFrequency = 60;
-        this.updatePeriod = 1 / this.updateFrequency;
-        this.lastTrailUpdateTime = 0;
+        this.advanceFrequency = 60;
+        this.advancePeriod = 1 / this.advanceFrequency;
+        this.lastAdvanceTime = 0;
         this.paused = false;
-        this.pauseUpdateTimeDiff = 0;
+        this.pauseAdvanceUpdateTimeDiff = 0;
     }
 
-    setUpdateFrequency(updateFrequency) {
-        this.updateFrequency = updateFrequency;
-        this.updatePeriod = 1.0 / this.updateFrequency;
+    setAdvanceFrequency(advanceFrequency) {
+        this.advanceFrequency = advanceFrequency;
+        this.advancePeriod = 1.0 / this.advanceFrequency;
     }
 
     initialize (material, length, dragTexture, localHeadWidth, localHeadGeometry, targetObject) {
@@ -271,24 +271,24 @@ export class TrailRenderer extends THREE.Object3D {
     pause() {
         if(!this.paused) {
             this.paused = true;
-            this.pauseUpdateTimeDiff = this.currentTime() - this.lastTrailUpdateTime;
+            this.pauseAdvanceUpdateTimeDiff = this.currentTime() - this.lastAdvanceTime;
         }
     }
 
     resume() {
         if(this.paused) {
             this.paused = false;
-            this.lastTrailUpdateTime = this.currentTime();// - this.pauseUpdateTimeDiff;
+            this.lastAdvanceTime = this.currentTime() - this.pauseAdvanceUpdateTimeDiff;
         }
     }
 
     update() {
         if (!this.paused) {
             const time = this.currentTime();
-            if (!this.lastTrailUpdateTime) this.lastTrailUpdateTime = time;
-            if (time - this.lastTrailUpdateTime > this.updatePeriod) {
+            if (!this.lastAdvanceTime) this.lastAdvanceTime = time;
+            if (time - this.lastAdvanceTime > this.advancePeriod) {
                 this.advance();
-                this.lastTrailUpdateTime = time;
+                this.lastAdvanceTime = time;
             } else {
                 this.updateHead();
             }

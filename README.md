@@ -22,6 +22,9 @@ trailHeadGeometry.push(
 // create the trail renderer object
 const trail = new TrailRenderer( scene, false );
 
+// set how often a new trail node will be added and existing nodes will be updated
+trail.setAdvanceFrequency(30);
+
 // create material for the trail renderer
 const trailMaterial = TrailRenderer.createBaseMaterial();	
 
@@ -33,29 +36,12 @@ trail.initialize( trailMaterial, trailLength, false, 0, trailHeadGeometry, trail
 
 // activate the trail
 trail.activate();
-```
 
-At each frame, you'll either need to call `updateHead()` or `advance()`
-
-```javascript
 function animate() {
-
     requestAnimationFrame( animate );
-    update();
+    trail.update();
     render();
  
 }
 
-let lastTrailUpdateTime = performance.now();
-function update() {
-    const time = performance.now();
-    if ( time - lastTrailUpdateTime > 10 ) {
-        trail.advance();
-        lastTrailUpdateTime = time;
-    } else {
-        trail.updateHead();
-    }
-}
 ```
-
-`advance()` will grow the trail (depending on the length settings) while `updateHead()` will simply update the trail's transforms from `trailTarget`

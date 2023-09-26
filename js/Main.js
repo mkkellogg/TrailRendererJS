@@ -196,7 +196,7 @@ function initTrailTarget() {
 
 function initTrailRenderers(callback) {
     trail = new TrailRenderer(scene, false);
-    trail.setUpdateFrequency(20);
+    trail.setAdvanceFrequency(30);
     baseTrailMaterial = TrailRenderer.createBaseMaterial();
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load("textures/sparkle4.jpg", function(tex) {
