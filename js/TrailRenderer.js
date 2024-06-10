@@ -74,8 +74,7 @@ export class TrailRenderer extends THREE.Object3D {
     initializeLocalHeadGeometry (localHeadWidth, localHeadGeometry) {
         this.localHeadGeometry = [];
         if (!localHeadGeometry) {
-            const halfWidth = localHeadWidth || 1.0;
-            halfWidth = halfWidth / 2.0;
+            const halfWidth = (localHeadWidth || 1.0) / 2.0;
             this.localHeadGeometry.push(new THREE.Vector3(-halfWidth, 0, 0));
             this.localHeadGeometry.push(new THREE.Vector3(halfWidth, 0, 0));
             this.VerticesPerNode = 2;
