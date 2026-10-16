@@ -1,5 +1,6 @@
 /**
 * @author Mark Kellogg - http://www.github.com/mkkellogg
+* Edited by Nik Lever https://niklever.com
 */
 import * as THREE from 'three';
 
@@ -74,7 +75,8 @@ export class TrailRenderer extends THREE.Object3D {
     initializeLocalHeadGeometry (localHeadWidth, localHeadGeometry) {
         this.localHeadGeometry = [];
         if (!localHeadGeometry) {
-            const halfWidth = (localHeadWidth || 1.0) / 2.0;
+            let halfWidth = localHeadWidth || 1.0;
+            halfWidth = halfWidth / 2.0;
             this.localHeadGeometry.push(new THREE.Vector3(-halfWidth, 0, 0));
             this.localHeadGeometry.push(new THREE.Vector3(halfWidth, 0, 0));
             this.VerticesPerNode = 2;
@@ -143,7 +145,7 @@ export class TrailRenderer extends THREE.Object3D {
             positions.array[ index + 2 ] = 0;
         }
         positions.needsUpdate = true;
-        positions.updateRange.count = - 1;
+        positions.clearUpdateRanges();
     }
 
     zeroIndices () {
@@ -154,8 +156,8 @@ export class TrailRenderer extends THREE.Object3D {
             indices.array[ index + 1 ] = 0;
             indices.array[ index + 2 ] = 0;
         }
+        indices.clearUpdateRanges();
         indices.needsUpdate = true;
-        indices.updateRange.count = - 1;
     }
 
     formInitialFaces () {
@@ -164,8 +166,8 @@ export class TrailRenderer extends THREE.Object3D {
         for (let i = 0; i < this.length - 1; i ++) {
             this.connectNodes(i, i + 1);
         }
+        indices.clearUpdateRanges();
         indices.needsUpdate = true;
-        indices.updateRange.count = - 1;
     }
 
     initializeMesh () {
@@ -318,10 +320,10 @@ export class TrailRenderer extends THREE.Object3D {
         }    
         nodeIDs.needsUpdate = true;
         nodeVertexIDs.needsUpdate = true;
-        nodeIDs.updateRange.offset = nodeIndex * this.VerticesPerNode; 
-        nodeIDs.updateRange.count = this.VerticesPerNode;
-        nodeVertexIDs.updateRange.offset = nodeIndex * this.VerticesPerNode;
-        nodeVertexIDs.updateRange.count = this.VerticesPerNode;
+        nodeIDs.clearUpdateRanges();
+        nodeIDs.addUpdateRange(nodeIndex * this.VerticesPerNode, this.VerticesPerNode); 
+        nodeVertexIDs.clearUpdateRanges();
+        nodeVertexIDs.addUpdateRange(nodeIndex * this.VerticesPerNode, this.VerticesPerNode); 
     }
 
     updateNodeCenter (nodeIndex, nodeCenter) { 
@@ -336,8 +338,8 @@ export class TrailRenderer extends THREE.Object3D {
             nodeCenters.array[ baseIndex + 2 ] = nodeCenter.z;
         }    
         nodeCenters.needsUpdate = true;
-        nodeCenters.updateRange.offset = nodeIndex * this.VerticesPerNode * TrailRenderer.PositionComponentCount; 
-        nodeCenters.updateRange.count = this.VerticesPerNode * TrailRenderer.PositionComponentCount; 
+        nodeCenters.clearUpdateRanges();
+        nodeCenters.addUpdateRange(nodeIndex * this.VerticesPerNode * TrailRenderer.PositionComponentCount, this.VerticesPerNode * TrailRenderer.PositionComponentCount); 
     }
 
     updateNodePositionsFromOrientationTangent = function() { 
@@ -448,8 +450,8 @@ export class TrailRenderer extends THREE.Object3D {
                 positions.array[ positionIndex + 2 ] = transformedHeadVertex.z;
             }
             positions.needsUpdate = true;
-            positions.updateRange.offset = nodeIndex * this.VerticesPerNode * TrailRenderer.PositionComponentCount; 
-            positions.updateRange.count = this.VerticesPerNode * TrailRenderer.PositionComponentCount; 
+            positions.clearUpdateRanges();
+            positions.addUpdateRange(nodeIndex * this.VerticesPerNode * TrailRenderer.PositionComponentCount, this.VerticesPerNode * TrailRenderer.PositionComponentCount); 
         };
 
     }();
@@ -476,7 +478,7 @@ export class TrailRenderer extends THREE.Object3D {
                 indices.array[ faceIndex + 5 ] = srcVertexIndex + 1;
             }
             indices.needsUpdate = true;
-            indices.updateRange.count = - 1;
+            indices.clearUpdateRanges();
             returnObj.attribute = indices;
             returnObj.offset =  srcNodeIndex * this.FacesPerNode * TrailRenderer.IndicesPerFace;
             returnObj.count = this.FacesPerNode * TrailRenderer.IndicesPerFace;
@@ -506,7 +508,7 @@ export class TrailRenderer extends THREE.Object3D {
                 indices.array[ faceIndex + 5 ] = 0;
             }
             indices.needsUpdate = true;
-            indices.updateRange.count = - 1;
+            indices.clearUpdateRanges();
             returnObj.attribute = indices;
             returnObj.offset = srcNodeIndex * this.FacesPerNode * TrailRenderer.IndicesPerFace;
             returnObj.count = this.FacesPerNode * TrailRenderer.IndicesPerFace;
